@@ -1,0 +1,12 @@
+{
+  "julia.environmentPath": "${workspaceFolder}",
+  "terminal.integrated.env.osx": {
+    "JULIA_PROJECT": "@."
+  },
+  "terminal.integrated.env.linux": {
+    "JULIA_PROJECT": "@."
+  },
+  "terminal.integrated.env.windows": {
+    "JULIA_PROJECT": "@."
+  }
+}
