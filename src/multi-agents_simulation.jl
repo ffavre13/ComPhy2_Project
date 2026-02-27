@@ -1,0 +1,135 @@
+using Plots
+
+"""
+    Molecule
+
+Class for storing information about a molecule.
+
+### Fields
+- `position::Float64`: The molecule's position [m].
+- `velocity::Float64`: The molecule's velocity [m/s].
+
+- `mass::Float64`: The mass of the molecule [kg].
+- `radius::Float64`: The radius of the molecule [m].
+- `chimical_formula::String`: The chemical formula of the molecule.
+
+- `positions_history::Vector{Vector{Float64}}`: A vector storing the history of the molecule's position.
+- `velocities_history::Vector{Vector{Float64}}`: A vector storing the history of the molecule's velocity.
+"""
+mutable struct Molecule
+    position::Vector{Float64}
+    velocity::Vector{Float64}
+
+    mass::Float64
+    radius::Float64
+    chimical_formula::String
+
+    positions_history::Vector{Vector{Float64}}
+    velocities_history::Vector{Vector{Float64}}
+end
+
+"""
+    ComputeNextPosition(molecule::Molecule, dt::Float64)
+
+Update the position of a molecule based on its current velocity and a time step.
+
+# Fields
+- `molecule::Molecule`: The molecule whose position will be updated.
+- `dt::Float64`: The time step for the position update.
+"""
+function ComputeNextPosition(molecule::Molecule, dt::Float64)
+    molecule.position = molecule.position + dt .* molecule.velocity
+end
+
+function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chimical_formula::Vector{String}, number_of_steps::Int64, dt::Float64)
+    molecules = []
+
+    for i in 1:length(position)
+        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chimical_formula[i], [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
+    end
+
+    for m in molecules
+        m.positions_history[1] .= m.position
+        m.velocities_history[1] .= m.velocity
+    end
+
+
+    for t in 2:number_of_steps
+        for i in eachindex(molecules)
+            for j in eachindex(molecules)
+                if i < j && detectCollision(molecules[i],molecules[j])
+                    normal_vect = (molecules[i].position .- molecules[j].position) / sqrt(sum((molecules[i].position .- molecules[j].position).^2))
+                    factor_1 = (2*molecules[j].mass / (molecules[i].mass + molecules[j].mass)).* (sum((molecules[i].velocity .- molecules[j].velocity) .* normal_vect)) .* normal_vect
+                    factor_2 = (2*molecules[i].mass / (molecules[i].mass + molecules[j].mass)).* (sum((molecules[i].velocity .- molecules[j].velocity) .* normal_vect)) .* normal_vect
+                    
+                    molecules[i].velocity = molecules[i].velocity .- factor_1
+                    molecules[j].velocity = molecules[j].velocity .+ factor_2
+                end
+            end
+        end
+
+        for m in molecules
+            ComputeNextPosition(m, dt)
+
+            m.positions_history[t] .= m.position
+            m.velocities_history[t] .= m.velocity
+        end
+    end
+
+    return molecules
+end
+
+function detectCollision(molecule_a::Molecule, molecule_b::Molecule)
+    dist_min = molecule_a.radius + molecule_b.radius
+
+    dist = molecule_a.position .- molecule_b.position
+    dist_norme = sqrt(sum(dist .^ 2))
+
+    return dist_norme <= dist_min
+end
+
+function plotSystem(molecules::Vector{Molecule}, t::Int64)
+    Plots.plot(legend=false,xlims=(-1,1),ylims=(-1,1),zlims=(-1,1), camera=(0, 0))
+
+    for m in molecules
+        x = [m.positions_history[t][1]]
+        y = [m.positions_history[t][2]]
+        z = [m.positions_history[t][3]]
+        Plots.scatter!(x,y,z,markersize=3)
+    end
+end
+
+function main()
+    number_of_steps = 200
+    FPS = 30
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chimical_formulas::Vector{String} = []
+
+    
+    for i in 1:1000
+        push!(positions, [rand()*2.0-1.0,0.0,rand()*2.0-1.0])
+        push!(velocities, [rand()*2.0,0.0,rand()*2.0])
+        push!(masses, rand()*5.0)
+        push!(radius, 0.01*rand())
+        push!(chimical_formulas, "TEST")
+    end
+
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chimical_formulas)
+
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chimical_formulas, number_of_steps, 0.001)
+
+    filename = "results/molecule.mp4"
+
+    animation = @animate for t in 1:number_of_steps
+        plotSystem(molecules, t)
+    end
+
+    mp4(animation, filename, fps = FPS)
+end
+
+main()
