@@ -42,7 +42,7 @@ function ComputeNextPosition(molecule::Molecule, dt::Float64)
 end
 
 function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chimical_formula::Vector{String}, number_of_steps::Int64, dt::Float64)
-    molecules = []
+    molecules::Vector{Molecule} = Molecule[]
 
     for i in 1:length(position)
         push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chimical_formula[i], [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))

@@ -1,14 +1,62 @@
 # multi agents simulation
 # Exercice 2
 ## Exercice 2_1
+### Masse
+Pour calculer la masse, on utilise la masse molaire pour chaque gaz et on la divise par $N_A$ (nombre d’Avogadro) pour obtenir la masse d’une molécule en [kg]. Le 1000 c'est pour passer de [g] en [kg]. Si on a N2, faire la masse molaire présente dans le tableau périodique * 2.
+
+$$
+m = \frac{M}{N_A * 1000}
+$$
+
+- M = masse molaire [g/mol]
+- $N_A$ = $6.022*10^{23}$ [1/mol]
+
+- He
+    - Masse molaire = 4.0026
+    - Masse [kg] = 6.64663e-27
+- Ne
+    - Masse molaire = 20.180
+    - Masse [kg] = 3.35105e-26
+- N2
+    - Masse molaire = 14.007 * 2 = 28.014
+    - Masse [kg] = 4.65194e-26
+- O2
+    - Masse molaire = 15.999 * 2 = 31.998
+    - Masse [kg] = 5.31352e-26
+
+### Rayon
+
+On prends le rayon de van der Waals : https://en.wikipedia.org/wiki/Van_der_Waals_radius
+
+- He
+    - https://fr.wikipedia.org/wiki/H%C3%A9lium
+    - Rayon atomique [m] : 1.4e-10 
+- Ne
+    - https://fr.wikipedia.org/wiki/N%C3%A9on
+    - Rayon atomique [m] : 1.54e-10 
+- N2
+    - https://en.wikipedia.org/wiki/Van_der_Waals_radius tableau a la fin de la page
+    - ~ le rayon de N
+    - Rayon atomique [m] : 1.55e-10
+- O2
+    - https://en.wikipedia.org/wiki/Van_der_Waals_radius tableau a la fin de la page
+    - ~ le rayon de O
+    - Rayon atomique [m] : 1.52e-10 
+### Formule chimique
+
+- He
+- Ne
+- N2
+- O2
+
 ```julia
-helium = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],6.6464731e-27,3.1e-11,"He",[],[])
-Neon = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],3.3509177e-26,4.8e-11,"Ne",[],[])
-diazote = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],1.85e-10,4.65e-26,"N2",[],[])
-dioxygene = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],1.5e-10,5.3135e-26,"O2",[],[])
+helium = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],6.64663e-27,1.4e-10 ,"He",[],[])
+Neon = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],3.35105e-26,1.54e-10 ,"Ne",[],[])
+diazote = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],4.65194e-26,1.55e-10,"N2",[],[])
+dioxygene = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],5.31352e-26,1.52e-10 ,"O2",[],[])
 ```
 ## Exercice 2_2
-Un gaz 
+La différentes est que on a He et Ne qui sont des atomes et N2 et O2 qui sont des molécules composée de 2 atomes. Comme la liason covalente dans les molécules N2 et O2 est très petite donc les atomes sont très proche, on peut considérer ces 2 molécules comme une sphère pour notre modèle. Donc la théorie s'applique bien avec cette lègre aproximation qui est de considérer que ça forme une sphère.
 
 # Exercice 3
 
@@ -39,6 +87,11 @@ $
 $
 
 # Exercice 4
+
+## Exercice 4_1
+
+On a le modèle des gaz parfais donc les molécules molécules sont assimilées à des sphères. Elles n’interagissent pas à distance.
+Lorsqu’elles se touchent, elles subissent un choc élastique.
 
 ## Exercice 4_2
 
