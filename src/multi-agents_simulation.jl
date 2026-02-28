@@ -99,6 +99,42 @@ function plotSystem(molecules::Vector{Molecule}, t::Int64)
     end
 end
 
+function calcEmec(molecules::Vector{Molecule}, t::Int64)
+    emec = 0
+
+    for m in molecules
+        emec += 1/2 * m.mass * (sum(m.velocity .^ 2))
+    end
+
+    return emec
+end
+
+function plotEmec(molecules::Vector{Molecule})
+    val = calcEmec(molecules, 1)
+
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcEmec(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mechanical energy of the system", grid=false, legend=false, xlabel="time [s]", ylabel="Mechanical energy [J]",ylims=(val-0.001,val+0.001))
+    display(p)
+end
+
+function calcQuantityOfMovement(molecules::Vector{Molecule}, t::Int64)
+    p::Vector{Float64} = zeros(Float64,length(molecules[1].velocity))
+
+    for m in molecules
+        p .+= m.mass .* m.velocity
+    end
+
+    return p
+end
+
+function PlotQuantityOfMovement(molecules::Vector{Molecule})
+    val = calcQuantityOfMovement(molecules, 1)
+
+    for dim in 1:length(molecules[1].velocity)
+        p = Plots.plot([1:length(molecules[1].velocities_history)],[calcQuantityOfMovement(molecules, t)[dim] for t in 1:length(molecules[1].velocities_history)], title="quantity of movement for axis $dim", grid=false, legend=false, xlabel="time [s]", ylabel="Quantity of movement (axis $dim) [kg*m/s]", ylims=(val[dim]-0.001,val[dim]+0.001))
+        display(p)
+    end
+end
+
 function main()
     number_of_steps = 200
     FPS = 30
@@ -118,10 +154,12 @@ function main()
         push!(chimical_formulas, "TEST")
     end
 
-
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chimical_formulas)
 
     molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chimical_formulas, number_of_steps, 0.001)
+
+    plotEmec(molecules)
+    PlotQuantityOfMovement(molecules)
 
     filename = "results/molecule.mp4"
 
