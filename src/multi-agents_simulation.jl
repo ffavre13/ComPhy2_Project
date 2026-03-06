@@ -12,7 +12,7 @@ Class for storing information about a molecule.
 
 - `mass::Float64`: The mass of the molecule [kg].
 - `radius::Float64`: The radius of the molecule [m].
-- `chimical_formula::String`: The chemical formula of the molecule.
+- `chemical_formula::String`: The chemical formula of the molecule.
 
 - `positions_history::Vector{Vector{Float64}}`: A vector storing the history of the molecule's position.
 - `velocities_history::Vector{Vector{Float64}}`: A vector storing the history of the molecule's velocity.
@@ -23,7 +23,7 @@ mutable struct Molecule
 
     mass::Float64
     radius::Float64
-    chimical_formula::String
+    chemical_formula::String
 
     positions_history::Vector{Vector{Float64}}
     velocities_history::Vector{Vector{Float64}}
@@ -71,11 +71,11 @@ function ComputeNextPosition(molecule::Molecule, dt::Float64)
     molecule.position = molecule.position + dt .* molecule.velocity
 end
 
-function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chimical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain)
+function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain)
     molecules::Vector{Molecule} = Molecule[]
 
     for i in 1:length(position)
-        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chimical_formula[i], [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
+        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
     end
 
     for m in molecules
@@ -144,7 +144,7 @@ function calcEmec(molecules::Vector{Molecule}, t::Int64)
     emec = 0
 
     for m in molecules
-        emec += 1/2 * m.mass * (sum(m.velocity .^ 2))
+        emec += 1/2 * m.mass * (sum(m.velocities_history[t] .^ 2))
     end
 
     return emec
@@ -161,7 +161,7 @@ function calcQuantityOfMovement(molecules::Vector{Molecule}, t::Int64)
     p::Vector{Float64} = zeros(Float64,length(molecules[1].velocity))
 
     for m in molecules
-        p .+= m.mass .* m.velocity
+        p .+= m.mass .* m.velocities_history[t]
     end
 
     return p
@@ -176,17 +176,34 @@ function PlotQuantityOfMovement(molecules::Vector{Molecule})
     end
 end
 
-function makieSystem(molecules, domain)
+function makieSystem(molecules, domain, number_of_steps)
 
     fig = Figure()
-
-    ax = Axis3(fig[1,1],limits = (-domain.lx/2, domain.lx/2, -domain.ly/2, domain.ly/2, -domain.lz/2, domain.lz/2))
+    
+    ax = Axis3(fig[1,1],limits = (-domain.lx/2, domain.lx/2, -domain.ly/2, domain.ly/2, -domain.lz/2, domain.lz/2), xgridvisible = false, ygridvisible = false, zgridvisible = false)
 
     positions = Observable([Point3f(m.position[1], m.position[2], m.position[3]) for m in molecules])
 
-    meshscatter!(ax, positions, markersize = 0.02)
+    sizes = [m.radius for m in molecules]
+    meshscatter!(ax, positions, markersize = sizes)
 
     return fig, positions
+end
+
+function makieSystemInteractive(molecules, domain, number_of_steps)
+
+    fig = Figure()
+    
+    ax = Axis3(fig[1,1],limits = (-domain.lx/2, domain.lx/2, -domain.ly/2, domain.ly/2, -domain.lz/2, domain.lz/2), xgridvisible = false, ygridvisible = false, zgridvisible = false)
+
+    slider = Slider(fig[2,1], range = 1:number_of_steps, startvalue = 1)
+    button = Button(fig[2,2], label = "Play")
+    positions = Observable([Point3f(m.position[1], m.position[2], m.position[3]) for m in molecules])
+
+    sizes = [m.radius for m in molecules]
+    meshscatter!(ax, positions, markersize = sizes)
+
+    return fig, positions, slider, button
 end
 
 function makieGetPositions(molecules, t)
@@ -197,44 +214,82 @@ function main()
     number_of_steps::Int64 = 200
     FPS = 30
 
-    dt::Float64 = 0.001
+    dt::Float64 = 1.0e-12
 
     positions::Vector{Vector{Float64}} = []
     velocities::Vector{Vector{Float64}} = []
     masses::Vector{Float64} = []
     radius::Vector{Float64} = []
-    chimical_formulas::Vector{String} = []
+    chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain(1.0,1.0,1.0)
+    domain::Domain = Domain(1.0e-8,1.0e-8,1.0e-8)
     
-    for i in 1:10
-        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
-        push!(velocities, [rand()*60.0-30.0,rand()*60.0-30.0,rand()*60.0-30.0])
-        push!(masses, rand()*5.0)
-        push!(radius, 0.01*rand())
-        push!(chimical_formulas, "TEST")
-    end
+    # Random generation
+
+    # for i in 1:10
+    #     push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+    #     push!(velocities, [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0])
+    #     push!(masses, rand()*5.0)
+    #     push!(radius, 0.01*rand())
+    #     push!(chemical_formulas, "TEST")
+    # end
+
+    positions = [[rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2]]
+
+    velocities = [[rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0]]
+
+    masses = [6.64663e-27, 3.35105e-26, 4.65194e-26, 5.31352e-26]
+    radius = [1.4e-10, 1.54e-10, 1.55e-10, 1.52e-10]
+    chemical_formulas = ["He", "Ne", "N2", "O2"]
 
 
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
-    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chimical_formulas)
-
-    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chimical_formulas, number_of_steps, dt, domain)
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, number_of_steps, dt, domain)
 
     # With makie
 
-    fig, pos = makieSystem(molecules, domain)
-
-    display(fig)
+    fig, pos  = makieSystem(molecules, domain, number_of_steps)
 
     record(fig, "results/molecule.mp4", 1:number_of_steps) do t
         pos[] = makieGetPositions(molecules, t)
     end
 
+    fig, pos, slider, button  = makieSystemInteractive(molecules, domain, number_of_steps)
+
+    playing = Observable(false)
+    stop_animation = true
+
+    on(slider.value) do t
+        pos[] = makieGetPositions(molecules, Int(t))
+    end
+
+    on(button.clicks) do _
+        playing[] = !playing[]
+    end
+
+    @async while stop_animation
+        if playing[]
+            slider.value[] = mod(slider.value[] , number_of_steps) + 1
+        end
+        sleep(1/FPS)
+    end
+    
+
+    wait(display(fig))
+
+    stop_animation = false
+
     # With Plots
 
-    # plotEmec(molecules)
-    # PlotQuantityOfMovement(molecules)
+    plotEmec(molecules)
+    PlotQuantityOfMovement(molecules)
 
     # filename = "results/molecule.mp4"
 

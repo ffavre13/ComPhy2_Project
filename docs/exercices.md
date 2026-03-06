@@ -55,6 +55,23 @@ Neon = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],3.35105e-26,1.54e-10 ,"Ne",[],[])
 diazote = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],4.65194e-26,1.55e-10,"N2",[],[])
 dioxygene = Molecule([0.0,0.0,0.0],[0.0,0.0,0.0],5.31352e-26,1.52e-10 ,"O2",[],[])
 ```
+
+```julia
+positions = [[rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
+                [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2]]
+
+velocities = [[rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
+                [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0]]
+
+masses = [6.64663e-27, 3.35105e-26, 4.65194e-26, 5.31352e-26]
+radius = [1.4e-10, 1.54e-10, 1.55e-10, 1.52e-10]
+chemical_formulas = ["He", "Ne", "N2", "O2"]
+```
+
 ## Exercice 2_2
 La différentes est que on a He et Ne qui sont des atomes et N2 et O2 qui sont des molécules composée de 2 atomes. Comme la liason covalente dans les molécules N2 et O2 est très petite donc les atomes sont très proche, on peut considérer ces 2 molécules comme une sphère pour notre modèle. Donc la théorie s'applique bien avec cette lègre aproximation qui est de considérer que ça forme une sphère.
 
@@ -106,7 +123,7 @@ positions = [[-0.1,0.0,0.0],[0.1,0.0,0.0]]
 velocities = [[5.0,0.0,0.0],[-5.0,0.0,0.0]]
 masses = [1.0,1.0]
 radius = [0.01,0.01]
-chimical_formulas = ["TEST","TEST"]
+chemical_formulas = ["TEST","TEST"]
 ```
 
 #### 2
@@ -119,7 +136,7 @@ positions = [[0.0,0.0,0.0],[0.1,0.0,0.0]]
 velocities = [[0.0,0.0,0.0],[-5.0,0.0,0.0]]
 masses = [1.0,2.0]
 radius = [0.01,0.01]
-chimical_formulas = ["TEST","TEST"]
+chemical_formulas = ["TEST","TEST"]
 ```
 
 #### 3
@@ -132,7 +149,7 @@ positions = [[-0.1,0.0,0.005],[0.1,0.0,0.0]]
 velocities = [[5.0,0.0,0.0],[-5.0,0.0,0.0]]
 masses = [1.0,1.0]
 radius = [0.01,0.01]
-chimical_formulas = ["TEST","TEST"]
+chemical_formulas = ["TEST","TEST"]
 ```
 
 #### 4
@@ -145,7 +162,7 @@ positions = [[0.0,0.0,0.0],[0.1,0.0,0.0]]
 velocities = [[-2.5,0.0,0.0],[-10.0,0.0,0.0]]
 masses = [0.000001,1.0]
 radius = [0.01,0.01]
-chimical_formulas = ["TEST","TEST"]
+chemical_formulas = ["TEST","TEST"]
 ```
 
 # Exercice 5
@@ -197,7 +214,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[15.0,0.0,0.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 2
@@ -209,7 +226,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[0.0,15.0,0.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 3
@@ -221,7 +238,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[0.0,0.0,15.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 4
@@ -233,7 +250,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[15.0,0.0,15.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 5
@@ -245,7 +262,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[15.0,15.0,15.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 6
@@ -257,7 +274,7 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[0.0,7.5,15.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
 
 ### 7
@@ -269,7 +286,7 @@ positions = [[0.0,0.0,0.0],[0.3,0.0,0.0]]
 velocities = [[-5.0,0.0,0.0],[-10.0,0.0,0.0]]
 masses = [0.5,1.0]
 radius = [0.01,0.01]
-chimical_formulas = ["TEST","TEST"]
+chemical_formulas = ["TEST","TEST"]
 ```
 
 ### 8
@@ -281,5 +298,5 @@ positions = [[0.0,0.0,0.0]]
 velocities = [[100.0,0.0,0.0]]
 masses = [1.0]
 radius = [0.01]
-chimical_formulas = ["TEST"]
+chemical_formulas = ["TEST"]
 ```
