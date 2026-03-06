@@ -147,3 +147,139 @@ masses = [0.000001,1.0]
 radius = [0.01,0.01]
 chimical_formulas = ["TEST","TEST"]
 ```
+
+# Exercice 5
+## Exercice 5_1
+
+```julia
+mutable struct Domain
+    lx::Float64
+    ly::Float64
+    lx::Float64
+end
+```
+
+## Exercice 5_2
+
+```julia
+function domainVolume(cuboid::Domain)
+    return cuboid.lx * cuboid.ly * cuboid.lz
+end
+```
+
+## Exercice 5_3
+
+Pour vérifier le domaine et le volume, on peut déclarer un domaine de 2m x 2m x 2m et vérifier que le volume soit bien de 8m^3. Pareil pour 1m x 1m x 1m que le volume soit bien 1m^3
+
+```julia
+domain_test::Domain = Domain(2.0,2.0,2.0)
+@assert domainVolume(domain_test) == 8.0
+println(domainVolume(domain_test))
+
+domain_test::Domain = Domain(1.0,1.0,1.0)
+@assert domainVolume(domain_test) == 1.0
+println(domainVolume(domain_test))
+```
+
+# Exercice 6
+## 6_1
+
+Prendre en compte le rayon de la molécule dans le calcule de la distance
+
+## 6_2
+
+### 1
+
+Test de faire rebondir la molécule sur le mur x
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[15.0,0.0,0.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 2
+
+Test de faire rebondir la molécule sur le mur y
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[0.0,15.0,0.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 3
+
+Test de faire rebondir la molécule sur le mur z
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[0.0,0.0,15.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 4
+
+Test de faire rebondir la molécule dans le coin entre 2 murs
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[15.0,0.0,15.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 5
+
+Test de faire rebondir la molécule dans le coin entre 3 murs
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[15.0,15.0,15.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 6
+
+Test de faire rebondir sur 2 mur
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[0.0,7.5,15.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
+
+### 7
+
+Molécule plus lourde qui bloque la molécule plus légère contre le mur
+
+```julia
+positions = [[0.0,0.0,0.0],[0.3,0.0,0.0]]
+velocities = [[-5.0,0.0,0.0],[-10.0,0.0,0.0]]
+masses = [0.5,1.0]
+radius = [0.01,0.01]
+chimical_formulas = ["TEST","TEST"]
+```
+
+### 8
+
+Test d'une molécule qui arrive contre le mur très vite
+
+```julia
+positions = [[0.0,0.0,0.0]]
+velocities = [[100.0,0.0,0.0]]
+masses = [1.0]
+radius = [0.01]
+chimical_formulas = ["TEST"]
+```
