@@ -339,7 +339,27 @@ for i in 1:400
 end
 ```
 
+## 7_2
+
+La vitesse moyenne diminue au cours du temps puis se stabilise vers a peut prêt 1300
+
+## 7_3
+
+La distribution est en forme de cloche et la moyenne à diminuée
+
 ## 7_4
+
+m = [kg]
+<v^2> = [m^2 / s^2]
+
+m*v^2 au niveau des unités est égale à l'unité de Ecin donc on a des [J] au numérateur
+
+kb = [J/K]
+
+alpha = [J/(J/K)] = [K]
+
+donc alpha est en Kelvin, alpha représente la température
+
 
 ```julia
 kb = 1.380649e-23 # [J/K]
@@ -350,6 +370,15 @@ alpha = (masses * mean_velocity) /  (3*kb)
 ```
 
 ## 7_5
+
+m = [kg]
+<v^2> = [m^2 / s^2]
+
+V = [m^3]
+
+beta = [J/m^3] = [N/m^2] = [Pa] 
+
+beta représente la pression et est donc en Pascal
 
 ```julia
 number_atomes = length(molecules) 

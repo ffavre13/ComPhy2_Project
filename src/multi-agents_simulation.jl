@@ -156,7 +156,7 @@ end
 function plotEmec(molecules::Vector{Molecule})
     val = calcEmec(molecules, 1)
 
-    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcEmec(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mechanical energy of the system", grid=false, legend=false, xlabel="time [s]", ylabel="Mechanical energy [J]",ylims=(val-0.001,val+0.001))
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcEmec(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mechanical energy of the system", grid=false, legend=false, xlabel="time [s]", ylabel="Mechanical energy [J]")
     display(p)
 end
 
@@ -174,7 +174,7 @@ function plotQuantityOfMovement(molecules::Vector{Molecule})
     val = calcQuantityOfMovement(molecules, 1)
 
     for dim in 1:length(molecules[1].velocity)
-        p = Plots.plot([1:length(molecules[1].velocities_history)],[calcQuantityOfMovement(molecules, t)[dim] for t in 1:length(molecules[1].velocities_history)], title="quantity of movement for axis $dim", grid=false, legend=false, xlabel="time [s]", ylabel="Quantity of movement (axis $dim) [kg*m/s]", ylims=(val[dim]-0.0001,val[dim]+0.0001))
+        p = Plots.plot([1:length(molecules[1].velocities_history)],[calcQuantityOfMovement(molecules, t)[dim] for t in 1:length(molecules[1].velocities_history)], title="quantity of movement for axis $dim", grid=false, legend=false, xlabel="time [s]", ylabel="Quantity of movement (axis $dim) [kg*m/s]")
         display(p)
     end
 end
@@ -190,14 +190,14 @@ function calcMeanVelocity(molecules::Vector{Molecule}, t::Int64)
 end
 
 function plotMeanVelocity(molecules::Vector{Molecule})
-    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcMeanVelocity(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mean velocity over the time", grid=false, legend=false, xlabel="time [s]", ylabel="velocity [m/s]")
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcMeanVelocity(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mean velocity over time", grid=false, legend=false, xlabel="time [s]", ylabel="velocity [m/s]")
     display(p)
 end
 
 function plotVelocityDistributionFinal(molecules::Vector{Molecule})
     t_final = length(molecules[1].velocities_history)
 
-    p = Plots.histogram([sqrt(sum(m.velocities_history[t_final] .^ 2)) for m in molecules], bins = 50, title="final velocity magnitude distribution", grid=false, legend=false, xlabel="velocity value [m/s]", ylabel="number of molecules")
+    p = Plots.histogram([sqrt(sum(m.velocities_history[t_final] .^ 2)) for m in molecules], bins = 70, title="final velocity magnitude distribution", grid=false, legend=false, xlabel="velocity value [m/s]", ylabel="number of molecules")
     display(p)
 end
 
@@ -211,34 +211,34 @@ function calcMeanVelocitySquare(molecules::Vector{Molecule}, t::Int64)
     return mean(velocities .^ 2)
 end
 
-function calcAlpha(molecules::Vector{Molecule}, t::Int64)
-    kb = 1.380649e-23 # [J/K]
-    mass = molecules[1].mass # [kg]
-    mean_velocity = calcMeanVelocitySquare(molecules, t) # [m^2/s^2] 
+function calcTemperature(molecules::Vector{Molecule}, t::Int64)
+    kb = 1.380649e-23
+    mass = molecules[1].mass
+    mean_velocity = calcMeanVelocitySquare(molecules, t)
 
-    alpha = (mass * mean_velocity) /  (3*kb)
+    temperature = (mass * mean_velocity) /  (3*kb)
 
-    return alpha
+    return temperature
 end
 
-function plotAlpha(molecules::Vector{Molecule})
-    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcAlpha(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="alpha over the time", grid=false, legend=false, xlabel="time [s]", ylabel="alpha [?]")
+function plotTemperature(molecules::Vector{Molecule})
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcTemperature(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="temperature over time", grid=false, legend=false, xlabel="time [s]", ylabel="Temperature [K]")
     display(p)
 end
 
-function calcBeta(molecules::Vector{Molecule}, t::Int64, cuboid::Domain)
-    number_atomes = length(molecules) 
-    mass = molecules[1].mass # [kg]
-    mean_velocity = calcMeanVelocitySquare(molecules, t) # [m^2/s^2] 
-    domain_volume = domainVolume(cuboid) # [m^3]
+function calcPressure(molecules::Vector{Molecule}, t::Int64, cuboid::Domain)
+    number_molecules = length(molecules) 
+    mass = molecules[1].mass
+    mean_velocity = calcMeanVelocitySquare(molecules, t)
+    domain_volume = domainVolume(cuboid)
 
-    beta = (number_atomes * mass * mean_velocity) /  (3 * domain_volume)
+    pressure = (number_molecules * mass * mean_velocity) /  (3 * domain_volume)
 
-    return beta
+    return pressure
 end
 
-function plotBeta(molecules::Vector{Molecule}, cuboid::Domain)
-    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcBeta(molecules, t, cuboid) for t in 1:length(molecules[1].velocities_history)], title="beta over the time", grid=false, legend=false, xlabel="time [s]", ylabel="beta [?]")
+function plotPressure(molecules::Vector{Molecule}, cuboid::Domain)
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcPressure(molecules, t, cuboid) for t in 1:length(molecules[1].velocities_history)], title="pressure over time", grid=false, legend=false, xlabel="time [s]", ylabel="Pressure [Pa]")
     display(p)
 end
 
@@ -278,7 +278,7 @@ function makieGetPositions(molecules, t)
 end
 
 function main()
-    number_of_steps::Int64 = 2000
+    number_of_steps::Int64 = 8000
     FPS = 60
 
     dt::Float64 = 1.0e-14
@@ -322,8 +322,8 @@ function main()
     plotQuantityOfMovement(molecules)
     plotMeanVelocity(molecules)
     plotVelocityDistributionFinal(molecules)
-    plotAlpha(molecules)
-    plotBeta(molecules, domain)
+    plotTemperature(molecules)
+    plotPressure(molecules, domain)
 
     # filename = "results/molecule.mp4"
 
