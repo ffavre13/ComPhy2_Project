@@ -1,5 +1,6 @@
 using Plots
 using GLMakie
+using Statistics
 
 """
     Molecule
@@ -43,17 +44,19 @@ function checkDomain(molecule::Molecule,domain::Domain)
     domain_pos = [domain.lx, domain.ly, domain.lz]
 
     for dim in eachindex(molecule.position)
-        if molecule.position[dim] - molecule.radius <= -domain_pos[dim]/2
-            dist = abs(-domain_pos[dim]/2 - (molecule.position[dim] - molecule.radius))
+        # left wall
+        if molecule.position[dim] - molecule.radius < -domain_pos[dim]/2
+            dist = -domain_pos[dim]/2 - (molecule.position[dim] - molecule.radius)
             
-            molecule.position[dim] = -domain_pos[dim]/2 + dist
-            molecule.velocity[dim] *= -1
+            molecule.position[dim] = molecule.position[dim] + 2*dist
+            molecule.velocity[dim] = molecule.velocity[dim] * -1.0
 
-        elseif molecule.position[dim] + molecule.radius >= domain_pos[dim]/2
-            dist = abs((molecule.position[dim] + molecule.radius) - domain_pos[dim]/2)
+        # right wall
+        elseif molecule.position[dim] + molecule.radius > domain_pos[dim]/2
+            dist = (molecule.position[dim] + molecule.radius) - domain_pos[dim]/2
 
-            molecule.position[dim] = domain_pos[dim]/2 - dist
-            molecule.velocity[dim] *= -1
+            molecule.position[dim] = molecule.position[dim] - 2*dist
+            molecule.velocity[dim] = molecule.velocity[dim] * -1.0
         end
     end
 end
@@ -167,7 +170,7 @@ function calcQuantityOfMovement(molecules::Vector{Molecule}, t::Int64)
     return p
 end
 
-function PlotQuantityOfMovement(molecules::Vector{Molecule})
+function plotQuantityOfMovement(molecules::Vector{Molecule})
     val = calcQuantityOfMovement(molecules, 1)
 
     for dim in 1:length(molecules[1].velocity)
@@ -175,6 +178,70 @@ function PlotQuantityOfMovement(molecules::Vector{Molecule})
         display(p)
     end
 end
+
+function calcMeanVelocity(molecules::Vector{Molecule}, t::Int64)
+    velocities::Vector{Float64} = []
+
+    for m in molecules
+        push!(velocities, sqrt(sum(m.velocities_history[t] .^ 2)))
+    end
+
+    return mean(velocities)
+end
+
+function plotMeanVelocity(molecules::Vector{Molecule})
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcMeanVelocity(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="mean velocity over the time", grid=false, legend=false, xlabel="time [s]", ylabel="velocity [m/s]")
+    display(p)
+end
+
+function plotVelocityDistributionFinal(molecules::Vector{Molecule})
+    t_final = length(molecules[1].velocities_history)
+
+    p = Plots.histogram([sqrt(sum(m.velocities_history[t_final] .^ 2)) for m in molecules], bins = 50, title="final velocity magnitude distribution", grid=false, legend=false, xlabel="velocity value [m/s]", ylabel="number of molecules")
+    display(p)
+end
+
+function calcMeanVelocitySquare(molecules::Vector{Molecule}, t::Int64)
+    velocities::Vector{Float64} = []
+
+    for m in molecules
+        push!(velocities, sqrt(sum(m.velocities_history[t] .^ 2)))
+    end
+
+    return mean(velocities .^ 2)
+end
+
+function calcAlpha(molecules::Vector{Molecule}, t::Int64)
+    kb = 1.380649e-23 # [J/K]
+    mass = molecules[1].mass # [kg]
+    mean_velocity = calcMeanVelocitySquare(molecules, t) # [m^2/s^2] 
+
+    alpha = (mass * mean_velocity) /  (3*kb)
+
+    return alpha
+end
+
+function plotAlpha(molecules::Vector{Molecule})
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcAlpha(molecules, t) for t in 1:length(molecules[1].velocities_history)], title="alpha over the time", grid=false, legend=false, xlabel="time [s]", ylabel="alpha [?]")
+    display(p)
+end
+
+function calcBeta(molecules::Vector{Molecule}, t::Int64, cuboid::Domain)
+    number_atomes = length(molecules) 
+    mass = molecules[1].mass # [kg]
+    mean_velocity = calcMeanVelocitySquare(molecules, t) # [m^2/s^2] 
+    domain_volume = domainVolume(cuboid) # [m^3]
+
+    beta = (number_atomes * mass * mean_velocity) /  (3 * domain_volume)
+
+    return beta
+end
+
+function plotBeta(molecules::Vector{Molecule}, cuboid::Domain)
+    p = Plots.plot([1:length(molecules[1].velocities_history)],[calcBeta(molecules, t, cuboid) for t in 1:length(molecules[1].velocities_history)], title="beta over the time", grid=false, legend=false, xlabel="time [s]", ylabel="beta [?]")
+    display(p)
+end
+
 
 function makieSystem(molecules, domain, number_of_steps)
 
@@ -211,10 +278,10 @@ function makieGetPositions(molecules, t)
 end
 
 function main()
-    number_of_steps::Int64 = 200
-    FPS = 30
+    number_of_steps::Int64 = 2000
+    FPS = 60
 
-    dt::Float64 = 1.0e-12
+    dt::Float64 = 1.0e-14
 
     positions::Vector{Vector{Float64}} = []
     velocities::Vector{Vector{Float64}} = []
@@ -222,36 +289,50 @@ function main()
     radius::Vector{Float64} = []
     chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain(1.0e-8,1.0e-8,1.0e-8)
+    domain::Domain = Domain(10e-9,10e-9,10e-9)
+    velocityValue::Float64 = 1400 # [m/s]
     
     # Random generation
 
-    # for i in 1:10
-    #     push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
-    #     push!(velocities, [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0])
-    #     push!(masses, rand()*5.0)
-    #     push!(radius, 0.01*rand())
-    #     push!(chemical_formulas, "TEST")
-    # end
+    for i in 1:400
+        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
 
-    positions = [[rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
-                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
-                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2], 
-                 [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2]]
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
 
-    velocities = [[rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
-                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
-                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0], 
-                  [rand()*250.0-125.0,rand()*250.0-125.0,rand()*250.0-125.0]]
+        @assert round(Int, sqrt(sum(velocity .^2))) == velocityValue
 
-    masses = [6.64663e-27, 3.35105e-26, 4.65194e-26, 5.31352e-26]
-    radius = [1.4e-10, 1.54e-10, 1.55e-10, 1.52e-10]
-    chemical_formulas = ["He", "Ne", "N2", "O2"]
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
 
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
     molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, number_of_steps, dt, domain)
+
+
+    # With Plots
+
+    plotEmec(molecules)
+    plotQuantityOfMovement(molecules)
+    plotMeanVelocity(molecules)
+    plotVelocityDistributionFinal(molecules)
+    plotAlpha(molecules)
+    plotBeta(molecules, domain)
+
+    # filename = "results/molecule.mp4"
+
+    # animation = @animate for t in 1:number_of_steps
+    #     plotSystem(molecules, t, domain)
+    # end
+
+    # mp4(animation, filename, fps = FPS)
+
 
     # With makie
 
@@ -285,19 +366,6 @@ function main()
     wait(display(fig))
 
     stop_animation = false
-
-    # With Plots
-
-    plotEmec(molecules)
-    PlotQuantityOfMovement(molecules)
-
-    # filename = "results/molecule.mp4"
-
-    # animation = @animate for t in 1:number_of_steps
-    #     plotSystem(molecules, t, domain)
-    # end
-
-    # mp4(animation, filename, fps = FPS)
 end
 
 main()

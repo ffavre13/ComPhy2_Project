@@ -300,3 +300,62 @@ masses = [1.0]
 radius = [0.01]
 chemical_formulas = ["TEST"]
 ```
+
+# Exerice 7
+## 7_1
+
+nb steps = $(2*10^-11) / (2*10^-14)$ ou $(2e-11) / (1e-14)$
+
+```julia
+number_of_steps::Int64 = 2000
+FPS = 30
+
+dt::Float64 = 1.0e-14
+
+positions::Vector{Vector{Float64}} = []
+velocities::Vector{Vector{Float64}} = []
+masses::Vector{Float64} = []
+radius::Vector{Float64} = []
+chemical_formulas::Vector{String} = []
+
+domain::Domain = Domain(10e-9,10e-9,10e-9)
+velocityValue::Float64 = 1500 # [m/s]
+
+# Random generation
+
+for i in 1:400
+    push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+
+    velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+    velocity = velocity ./ sqrt(sum(velocity .^2))
+    velocity = velocity .* velocityValue
+
+    @assert round(Int, sqrt(sum(velocity .^2))) == velocityValue
+
+    push!(velocities, velocity)
+    push!(masses, 6.646e-27)
+    push!(radius, 1.1e-10)
+    push!(chemical_formulas, "He")
+end
+```
+
+## 7_4
+
+```julia
+kb = 1.380649e-23 # [J/K]
+masses = sum([m.mass for m in molecules]) # [kg]
+mean_velocity = calcMeanVelocity(molecules, t) ^ 2 # [m^2/s^2] 
+
+alpha = (masses * mean_velocity) /  (3*kb)
+```
+
+## 7_5
+
+```julia
+number_atomes = length(molecules) 
+masses = sum([m.mass for m in molecules]) # [kg]
+mean_velocity = calcMeanVelocity(molecules, t) ^ 2 # [m^2/s^2] 
+domain_volume = domainVolume(cuboid) # [m^3]
+
+beta = (number_atomes * masses * mean_velocity) /  (3 * domain_volume)
+```
