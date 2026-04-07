@@ -388,3 +388,76 @@ domain_volume = domainVolume(cuboid) # [m^3]
 
 beta = (number_atomes * masses * mean_velocity) /  (3 * domain_volume)
 ```
+
+# Exercice 8
+## 8_3
+
+26.85° -> 300 K
+$$
+
+v_{grav helium} =  \frac{6.646 \cdot 10^{-27} \cdot 9.81 \cdot 6.5 \cdot 10^{-5}}{1.380649 \cdot 10^{-23} \cdot 300} = 1.02315 \cdot 10^{-9} [m/s]
+
+$$
+
+Donc pour faire 1 mètre on prends :
+
+$$
+1 / 1.02315 \cdot 10^{-9} = 9.77374 \cdot 10^8 [s] = 30.9718 [years]
+$$
+
+le but de la vitesse c'est de dire sur 1m, en cb de temps on commence a initier un mouvement uniquement du a la gravité.
+
+## 8_4
+
+```julia
+number_of_steps::Int64 = 5000 # ou 10000 si on veut un truc stable
+FPS = 60
+
+g = [0,0,-9.81 * 10^13]
+
+dt::Float64 = 1.0e-14
+
+positions::Vector{Vector{Float64}} = []
+velocities::Vector{Vector{Float64}} = []
+masses::Vector{Float64} = []
+radius::Vector{Float64} = []
+chemical_formulas::Vector{String} = []
+
+domain::Domain = Domain(4e-8,4e-8,4e-8)
+velocityValue::Float64 = 1367 # [m/s]
+
+number_atomes = 500
+
+# Random generation
+
+for i in 1:number_atomes
+    push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+
+    velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+    velocity = velocity ./ sqrt(sum(velocity .^2))
+    velocity = velocity .* velocityValue
+
+    @assert round(Int, sqrt(sum(velocity .^2))) == velocityValue
+
+    push!(velocities, velocity)
+    push!(masses, 6.646e-27)
+    push!(radius, 1.1e-10)
+    push!(chemical_formulas, "He")
+end
+```
+
+## 8_5
+
+La turbopause c'est une frontière entre deux zone de l'atmosphère.
+
+En dessous (Homosphère), les gaz sont bien mélangé grâce au mouvement turbulents (Vents,...). La composition de l'air reste presque constante.
+
+En dessus (Heterosphère), les gaz ne sont plus mélangé de la même manière.Ils se séparent selon leur masse (Les plus légé montent plus haut)
+
+On a cette limite car les mouvements turbulents devient trop faible pour bien mélanger les gaz.
+
+La limite se situe a 80-120 km d'altitude
+
+## 8_6
+
+Plus on est haut moin la pression est forte.

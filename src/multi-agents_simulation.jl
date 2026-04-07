@@ -26,6 +26,8 @@ mutable struct Molecule
     radius::Float64
     chemical_formula::String
 
+    g::Vector{Float64}
+
     positions_history::Vector{Vector{Float64}}
     velocities_history::Vector{Vector{Float64}}
 end
@@ -71,14 +73,16 @@ Update the position of a molecule based on its current velocity and a time step.
 - `dt::Float64`: The time step for the position update.
 """
 function ComputeNextPosition(molecule::Molecule, dt::Float64)
+    molecule.velocity = molecule.velocity + molecule.g .* dt
+
     molecule.position = molecule.position + dt .* molecule.velocity
 end
 
-function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain)
+function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain, g::Vector{Float64})
     molecules::Vector{Molecule} = Molecule[]
 
     for i in 1:length(position)
-        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
+        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], g, [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
     end
 
     for m in molecules
@@ -106,6 +110,8 @@ function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{F
 
     return molecules
 end
+
+
 
 function detectCollision(molecule_a::Molecule, molecule_b::Molecule)
     dist_min = molecule_a.radius + molecule_b.radius
@@ -243,6 +249,40 @@ function plotPressure(molecules::Vector{Molecule}, cuboid::Domain)
 end
 
 
+function plotPositionZDistribution(molecules::Vector{Molecule}, t::Int64)
+    p = Plots.histogram([m.positions_history[t][3] for m in molecules], bins = 20, title="final position z distribution", grid=false, legend=false, normalize=:probability, xlabel="position z [m]", ylabel="percentage")
+    display(p)
+end
+
+function calcPressureZDistribution(molecules::Vector{Molecule}, t::Int64, cuboid::Domain, number_bins::Int64)
+    bin_size = cuboid.lz / number_bins
+
+    molecules_in_bin::Vector{Vector{Molecule}} = [Molecule[] for _ in 1:number_bins]
+    z_values = [-cuboid.lz/2 + (i-0.5)*bin_size for i in 1:number_bins]
+    pressure_values = zeros(Float64, number_bins)
+
+    for i in 1:number_bins
+        for m in molecules
+            if m.positions_history[t][3] >= -cuboid.lz/2 + bin_size*(i-1) && m.positions_history[t][3] < -cuboid.lz/2 + bin_size*i
+                push!(molecules_in_bin[i], m)
+            end
+        end
+
+        if length(molecules_in_bin[i]) > 0
+            pressure_values[i] = calcPressure(molecules_in_bin[i], t, Domain(cuboid.lx, cuboid.ly, bin_size))
+        end
+    end
+    
+    return z_values, pressure_values
+end
+
+function plotPressureZDistribution(molecules::Vector{Molecule}, cuboid::Domain, t::Int64)
+    z_values, pressure_values = calcPressureZDistribution(molecules, t, cuboid, 20)
+
+    p = Plots.bar(z_values, pressure_values, title="pressure distribution along z axis", grid=false, legend=false, xlabel="position z [m]", ylabel="Pressure [Pa]")
+    display(p)
+end
+
 function makieSystem(molecules, domain, number_of_steps)
 
     fig = Figure()
@@ -262,15 +302,31 @@ function makieSystemInteractive(molecules, domain, number_of_steps)
     fig = Figure()
     
     ax = Axis3(fig[1,1],limits = (-domain.lx/2, domain.lx/2, -domain.ly/2, domain.ly/2, -domain.lz/2, domain.lz/2), xgridvisible = false, ygridvisible = false, zgridvisible = false)
+    ax_distribution_z = Axis(fig[3,1], title="Position z distribution", xlabel="position z [m]", ylabel="percentage", xgridvisible = false, ygridvisible = false)
+    ax_pressure_z = Axis(fig[4,1], title="Pressure distribution along z axis", xlabel="position z [m]", ylabel="Pressure [Pa]", xgridvisible = false, ygridvisible = false)
 
     slider = Slider(fig[2,1], range = 1:number_of_steps, startvalue = 1)
     button = Button(fig[2,2], label = "Play")
+    
     positions = Observable([Point3f(m.position[1], m.position[2], m.position[3]) for m in molecules])
-
     sizes = [m.radius for m in molecules]
     meshscatter!(ax, positions, markersize = sizes)
 
-    return fig, positions, slider, button
+    z_distribution = Observable([m.positions_history[1][3] for m in molecules])
+
+    hist!(ax_distribution_z, z_distribution, bins = 20, normalization = :probability)
+
+    z_values = Observable(Float64[])
+    z_pressure_values = Observable(Float64[])
+
+    z_init, p_init = calcPressureZDistribution(molecules, 1, domain, 20)
+
+    z_values[] = z_init
+    z_pressure_values[] = p_init
+
+    barplot!(ax_pressure_z, z_values, z_pressure_values)
+
+    return fig, positions, slider, button, z_distribution, z_values, z_pressure_values
 end
 
 function makieGetPositions(molecules, t)
@@ -278,8 +334,10 @@ function makieGetPositions(molecules, t)
 end
 
 function main()
-    number_of_steps::Int64 = 8000
+    number_of_steps::Int64 = 10000
     FPS = 60
+
+    g = [0,0,-9.81 * 10^13]
 
     dt::Float64 = 1.0e-14
 
@@ -289,12 +347,14 @@ function main()
     radius::Vector{Float64} = []
     chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain(10e-9,10e-9,10e-9)
-    velocityValue::Float64 = 1400 # [m/s]
+    domain::Domain = Domain(4e-8,4e-8,4e-8)
+    velocityValue::Float64 = 1367 # [m/s]
     
+    number_atomes = 500
+
     # Random generation
 
-    for i in 1:400
+    for i in 1:number_atomes
         push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
 
         velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
@@ -313,7 +373,7 @@ function main()
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
-    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, number_of_steps, dt, domain)
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, number_of_steps, dt, domain, g)
 
 
     # With Plots
@@ -324,6 +384,8 @@ function main()
     plotVelocityDistributionFinal(molecules)
     plotTemperature(molecules)
     plotPressure(molecules, domain)
+    plotPositionZDistribution(molecules, length(molecules[1].positions_history))
+    plotPressureZDistribution(molecules, domain, length(molecules[1].positions_history))
 
     # filename = "results/molecule.mp4"
 
@@ -342,13 +404,15 @@ function main()
         pos[] = makieGetPositions(molecules, t)
     end
 
-    fig, pos, slider, button  = makieSystemInteractive(molecules, domain, number_of_steps)
+    fig, pos, slider, button, z_distribution, z_values, z_pressure_values = makieSystemInteractive(molecules, domain, number_of_steps)
 
     playing = Observable(false)
     stop_animation = true
 
     on(slider.value) do t
         pos[] = makieGetPositions(molecules, Int(t))
+        z_distribution[] = [m.positions_history[Int(t)][3] for m in molecules]
+        z_values[], z_pressure_values[] = calcPressureZDistribution(molecules, Int(t), domain, 20)
     end
 
     on(button.clicks) do _
