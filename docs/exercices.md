@@ -461,3 +461,112 @@ La limite se situe a 80-120 km d'altitude
 ## 8_6
 
 Plus on est haut moin la pression est forte.
+
+# Exercice 9
+## Configuration before
+```julia
+    number_of_steps::Int64 = 10000
+    FPS = 60
+
+    g = [0,0,-9.81 * 10^13]
+
+    dt::Float64 = 1.0e-14
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain(4e-8,4e-8,4e-8)
+    velocityValue::Float64 = 1367 # [m/s]
+    
+    number_atomes = 500
+
+    # Random generation
+
+    for i in 1:number_atomes
+        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert round(Int, sqrt(sum(velocity .^2))) == velocityValue
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+```
+## 9_1
+```julia
+    number_of_steps::Int64 = 5000
+    FPS = 240
+
+    g = [0,0,-9.81 * 10^13]
+
+    dt::Float64 = 1.0e-14
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain(2e-8, 2e-8, 2e-8)
+
+    # Random generation
+
+    velocityValue::Float64 = 789.45 # [m/s]
+    number_atomes::Int64 = 400
+
+    for i in 1:number_atomes
+        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
+    velocityValue = 249.88 # [m/s]
+    number_atomes = 200
+
+    for i in 1:number_atomes
+        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.634e-26)
+        push!(radius, 1.88e-10)
+        push!(chemical_formulas, "Ar")
+    end
+
+```
+## 9_3
+
+- <v^2>
+
+- <m*v^2>
+
+Enfaite avant pour calculer la température et la préssion, on pouvait sortir la masse vu que c'était la meme pour toute les molécule mais la mtn on peut plus, car on a des molécules différentes ducoup faut mettre dans la moyenne la masse * la vitesse
+
+# Exercice 10
+## 10_1
+Pour évaluer la stabilité de la simulation, on peut regarder Ecin, Temperature ou la pression, la simulation est terminée lorsque ces valeurs sont stables.
+
+On peut regarder à l'aide d'une fenètre glissance lorsque la variance de ces valeurs devient inférieur à un certain seuil.
+Je vais partie sur Ecin moyenne.
