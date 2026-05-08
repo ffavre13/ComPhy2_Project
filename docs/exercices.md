@@ -570,3 +570,103 @@ Pour évaluer la stabilité de la simulation, on peut regarder Ecin, Temperature
 
 On peut regarder à l'aide d'une fenètre glissance lorsque la variance de ces valeurs devient inférieur à un certain seuil.
 Je vais partie sur Ecin moyenne.
+
+# Exercice 11
+## 11_1
+
+Distribution de Boltzmann
+
+Dépend de la température, l'énergie mécanique.
+
+## 11_2
+
+La position des molécules.
+La pression 
+
+# Exercice 12
+## 12_2
+```julia
+    number_of_steps::Int64 = 5000
+    FPS = 240
+
+    g = [0.0,0.0,0.0]
+
+    dt::Float64 = 1.0e-14
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain(1e-8, 1e-8, 1e-8)
+
+    # Random generation
+
+    velocityValue::Float64 = 1400 # [m/s]
+    number_atomes::Int64 = 400
+
+    for i in 1:number_atomes
+        push!(positions, [
+            rand()*domain.lx/2-domain.lx/2,
+            rand()*domain.ly/2-domain.ly/2,
+            rand()*domain.lz/2-domain.lz/2
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+```
+![alt text](img/12_2.png)
+## 12_3
+
+```julia
+    number_of_steps::Int64 = 10000
+    FPS = 240
+
+    g = [0.0,0.0,0.0]
+
+    dt::Float64 = 1.0e-14
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain(2e-8, 1e-8, 1e-8)
+
+    # Random generation
+
+    velocityValue::Float64 = 1400 # [m/s]
+    number_atomes::Int64 = 400
+
+    for i in 1:number_atomes
+        push!(positions, [
+            rand()*domain.lx/2-domain.lx/2,
+            rand()*domain.ly/2-domain.ly/2,
+            rand()*domain.lz/2-domain.lz/2
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+```
+
+![alt text](img/12_3.png)

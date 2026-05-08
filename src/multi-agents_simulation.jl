@@ -365,6 +365,78 @@ function plotMeanVelocityZDistribution(molecules::Vector{Molecule}, cuboid::Doma
     display(p)
 end
 
+function calcEntropie(molecules::Vector{Molecule}, cuboid::Domain, t::Int64)
+    domain_v_square = [0, 200000]
+    number_bins_x = 20
+    number_bins_y = 10
+    number_bins_z = 10
+    number_bins_v = 200
+
+    bin_x_size = cuboid.lx / number_bins_x
+    bin_y_size = cuboid.ly / number_bins_y
+    bin_z_size = cuboid.lz / number_bins_z
+    bin_v_size = (domain_v_square[2] - domain_v_square[1]) / number_bins_v
+
+    number_molecules = length(molecules)
+    molecules_x = zeros(Float64, number_bins_x)
+    molecules_y = zeros(Float64, number_bins_y)
+    molecules_z = zeros(Float64, number_bins_z)
+    molecules_v = zeros(Float64, number_bins_v)
+
+    for i in 1:number_bins_v
+        for m in molecules
+            v_square = sqrt(sum(m.velocities_history[t] .^ 2))
+            if v_square >= domain_v_square[1] + bin_v_size*(i-1) && v_square < domain_v_square[1] + bin_v_size*i
+                molecules_v[i] += 1
+            end
+        end
+    end
+
+    proba_v = molecules_v ./ number_molecules
+    
+    for i in 1:number_bins_x
+        for m in molecules
+            if m.positions_history[t][1] >= -cuboid.lx/2 + bin_x_size*(i-1) && m.positions_history[t][1] < -cuboid.lx/2 + bin_x_size*i
+                molecules_x[i] += 1
+            end
+        end
+    end
+
+    for i in 1:number_bins_y
+        for m in molecules
+            if m.positions_history[t][2] >= -cuboid.ly/2 + bin_y_size*(i-1) && m.positions_history[t][2] < -cuboid.ly/2 + bin_y_size*i
+                molecules_y[i] += 1
+            end
+        end
+    end
+
+    for i in 1:number_bins_z
+        for m in molecules
+            if m.positions_history[t][3] >= -cuboid.lz/2 + bin_z_size*(i-1) && m.positions_history[t][3] < -cuboid.lz/2 + bin_z_size*i
+                molecules_z[i] += 1
+            end
+        end
+    end
+
+    proba_x = molecules_x ./ number_molecules
+    proba_y = molecules_y ./ number_molecules   
+    proba_z = molecules_z ./ number_molecules
+
+    entropie_x = -sum([p > 0 ? p * log(p) : 0.0 for p in proba_x])
+    entropie_y = -sum([p > 0 ? p * log(p) : 0.0 for p in proba_y])
+    entropie_z = -sum([p > 0 ? p * log(p) : 0.0 for p in proba_z])
+
+    entropie_v = -sum([p > 0 ? p * log(p) : 0.0 for p in proba_v])
+
+    return entropie_x + entropie_y + entropie_z + entropie_v
+end
+
+function plotEntropie(molecules::Vector{Molecule}, cuboid::Domain)
+    y = [calcEntropie(molecules, cuboid, t) for t in 1:length(molecules[1].velocities_history)]
+    p = Plots.plot([1:length(molecules[1].velocities_history)], y, title="entropie of the system", grid=false, legend=false, xlabel="time [s]", ylabel="Entropie ", ylims=:auto, xlims=:auto, xticks=:auto, yticks=range(minimum(y), maximum(y), length=5))
+    display(p)
+end
+
 function makieSystem(molecules, domain, number_of_steps)
 
     fig = Figure()
@@ -452,10 +524,10 @@ function makieGetPositions(molecules, t)
 end
 
 function main()
-    number_of_steps::Int64 = 35000
+    number_of_steps::Int64 = 10000
     FPS = 240
 
-    g = [0,0,-9.81 * 10^13]
+    g = [0.0,0.0,0.0]
 
     dt::Float64 = 1.0e-14
 
@@ -465,15 +537,22 @@ function main()
     radius::Vector{Float64} = []
     chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain(2e-8, 2e-8, 2e-8)
+    domain::Domain = Domain(2e-8, 1e-8, 1e-8)
 
     # Random generation
 
-    velocityValue::Float64 = 789.45 # [m/s]
+    velocityValue::Float64 = 1400 # [m/s]
     number_atomes::Int64 = 400
 
+
+    # TODO Change the domain to be able to fix born ex: lx = [−5 · 10 −9 , 15 · 10 −9 ]
+
     for i in 1:number_atomes
-        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
+        push!(positions, [
+            rand()*domain.lx/2-domain.lx/2,
+            rand()*domain.ly/2-domain.ly/2,
+            rand()*domain.lz/2-domain.lz/2
+            ])
 
         velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
         velocity = velocity ./ sqrt(sum(velocity .^2))
@@ -485,24 +564,6 @@ function main()
         push!(masses, 6.646e-27)
         push!(radius, 1.1e-10)
         push!(chemical_formulas, "He")
-    end
-
-    velocityValue = 249.88 # [m/s]
-    number_atomes = 200
-
-    for i in 1:number_atomes
-        push!(positions, [rand()*domain.lx-domain.lx/2,rand()*domain.ly-domain.ly/2,rand()*domain.lz-domain.lz/2])
-
-        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
-        velocity = velocity ./ sqrt(sum(velocity .^2))
-        velocity = velocity .* velocityValue
-
-        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
-
-        push!(velocities, velocity)
-        push!(masses, 6.634e-26)
-        push!(radius, 1.88e-10)
-        push!(chemical_formulas, "Ar")
     end
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
@@ -546,6 +607,7 @@ function main()
     plotPressureZDistribution(molecules, domain, length(molecules[1].positions_history))
     plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
     plotMeanVelocityZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotEntropie(molecules, domain)
 
     # filename = "results/molecule.mp4"
 
