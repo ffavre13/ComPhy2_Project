@@ -670,3 +670,62 @@ La pression
 ```
 
 ![alt text](img/12_3.png)
+
+# Exercice 13
+## 13_1
+Car on chauffe uniquement le gaz en haut et en bas et pas a gauche, doite devant et derrière. Donc on a un gradient de température dans la direction z et pas dans les autres directions.
+
+## 13_2
+```julia
+    number_of_steps::Int64 = 10000
+    FPS = 240
+
+    g = [0.0,0.0,0.0]
+
+    dt::Float64 = 1.0e-14
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
+    new_domain::Domain = Domain((-5e-9, 15e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
+    temperature_top::Float64 = 700 # [K]
+    temperature_bottom::Float64 = 300 # [K]
+
+    # Random generation
+
+    velocityValue::Float64 = 1400 # [m/s]
+    number_atomes::Int64 = 500
+
+    spawn_domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
+    
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+```
+
+## 13_4
+
+![alt text](img/13_4.png)
+
+## 13_5
+
+![alt text](img/13_5.png)

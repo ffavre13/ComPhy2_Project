@@ -1,7 +1,8 @@
 using Plots
 using GLMakie
 using Statistics
-
+using Distributions
+using Random
 """
     Molecule
 
@@ -42,23 +43,74 @@ function domainVolume(domain::Domain)
     return abs(domain.lx[2] - domain.lx[1]) * abs(domain.ly[2] - domain.ly[1]) * abs(domain.lz[2] - domain.lz[1])
 end
 
-function checkDomain(molecule::Molecule,domain::Domain)
+function checkDomain(molecule::Molecule,domain::Domain, temperature_top::Float64, temperature_bottom::Float64, add_temperature_gradient::Bool)
     domain_pos = [domain.lx, domain.ly, domain.lz]
 
-    for dim in eachindex(molecule.position)
-        # left wall
-        if molecule.position[dim] - molecule.radius < domain_pos[dim][1]
-            dist = domain_pos[dim][1] - (molecule.position[dim] - molecule.radius)
-            
-            molecule.position[dim] = molecule.position[dim] + 2*dist
-            molecule.velocity[dim] = molecule.velocity[dim] * -1.0
+    if add_temperature_gradient
+        for dim in eachindex(molecule.position)
+            if dim != 3
+                # left,right,front and back walls
+                # left wall
+                if molecule.position[dim] - molecule.radius < domain_pos[dim][1]
+                    dist = domain_pos[dim][1] - (molecule.position[dim] - molecule.radius)
+                    
+                    molecule.position[dim] = molecule.position[dim] + 2*dist
+                    molecule.velocity[dim] = molecule.velocity[dim] * -1.0
 
-        # right wall
-        elseif molecule.position[dim] + molecule.radius > domain_pos[dim][2]
-            dist = (molecule.position[dim] + molecule.radius) - domain_pos[dim][2]
+                # right wall
+                elseif molecule.position[dim] + molecule.radius > domain_pos[dim][2]
+                    dist = (molecule.position[dim] + molecule.radius) - domain_pos[dim][2]
 
-            molecule.position[dim] = molecule.position[dim] - 2*dist
-            molecule.velocity[dim] = molecule.velocity[dim] * -1.0
+                    molecule.position[dim] = molecule.position[dim] - 2*dist
+                    molecule.velocity[dim] = molecule.velocity[dim] * -1.0
+                end
+            else
+                # top and bottom walls
+                kb = 1.380649e-23
+                # bottom wall
+                if molecule.position[dim] - molecule.radius < domain_pos[dim][1]
+                    dist = domain_pos[dim][1] - (molecule.position[dim] - molecule.radius)
+                    
+                    sigma = sqrt((temperature_bottom * kb) / molecule.mass)
+
+                    vx = rand(Normal(0, sigma))
+                    vy = rand(Normal(0, sigma))
+                    vz = sigma * sqrt(-2 * log(rand()))
+
+                    molecule.position[dim] = molecule.position[dim] + 2*dist
+                    molecule.velocity = [vx, vy, vz]
+
+                # top wall
+                elseif molecule.position[dim] + molecule.radius > domain_pos[dim][2]
+                    dist = (molecule.position[dim] + molecule.radius) - domain_pos[dim][2]
+
+                    sigma = sqrt((temperature_top * kb) / molecule.mass)
+
+                    vx = rand(Normal(0, sigma))
+                    vy = rand(Normal(0, sigma))
+                    vz = -sigma * sqrt(-2 * log(rand()))
+
+                    molecule.position[dim] = molecule.position[dim] - 2*dist
+                    molecule.velocity = [vx, vy, vz]
+                end
+            end
+        end
+    else
+        for dim in eachindex(molecule.position)
+            # left wall
+            if molecule.position[dim] - molecule.radius < domain_pos[dim][1]
+                dist = domain_pos[dim][1] - (molecule.position[dim] - molecule.radius)
+                
+                molecule.position[dim] = molecule.position[dim] + 2*dist
+                molecule.velocity[dim] = molecule.velocity[dim] * -1.0
+
+            # right wall
+            elseif molecule.position[dim] + molecule.radius > domain_pos[dim][2]
+                dist = (molecule.position[dim] + molecule.radius) - domain_pos[dim][2]
+
+                molecule.position[dim] = molecule.position[dim] - 2*dist
+                molecule.velocity[dim] = molecule.velocity[dim] * -1.0
+            end
         end
     end
 end
@@ -78,7 +130,7 @@ function ComputeNextPosition(molecule::Molecule, dt::Float64)
     molecule.position = molecule.position + dt .* molecule.velocity
 end
 
-function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain, g::Vector{Float64}, remove_wall::Bool, new_domain::Domain)
+function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain, g::Vector{Float64}, remove_wall::Bool, new_domain::Domain, temperature_top::Float64, temperature_bottom::Float64, add_temperature_gradient::Bool)
     molecules::Vector{Molecule} = Molecule[]    
     current_domain = domain
     
@@ -104,12 +156,12 @@ function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{F
         for m in molecules
             if remove_wall
                 if t > div(number_of_steps, 2)
-                    checkDomain(m, new_domain)
+                    checkDomain(m, new_domain, temperature_top, temperature_bottom, add_temperature_gradient)
                 else 
-                    checkDomain(m, current_domain)
+                    checkDomain(m, current_domain, temperature_top, temperature_bottom, add_temperature_gradient)
                 end
             else
-                checkDomain(m, current_domain)
+                checkDomain(m, current_domain, temperature_top, temperature_bottom, add_temperature_gradient)
             end
         end
 
@@ -534,7 +586,7 @@ function makieGetPositions(molecules, t)
     return [Point3f(m.positions_history[t][1],m.positions_history[t][2],m.positions_history[t][3]) for m in molecules]
 end
 
-function main(remove_wall::Bool = true)
+function main(check_stability::Bool = true, remove_wall::Bool = true, add_temperature_gradient::Bool = true)
     number_of_steps::Int64 = 10000
     FPS = 240
 
@@ -548,15 +600,17 @@ function main(remove_wall::Bool = true)
     radius::Vector{Float64} = []
     chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
+    domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
     new_domain::Domain = Domain((-5e-9, 15e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
+    temperature_top::Float64 = 700 # [K]
+    temperature_bottom::Float64 = 300 # [K]
 
     # Random generation
 
     velocityValue::Float64 = 1400 # [m/s]
-    number_atomes::Int64 = 400
+    number_atomes::Int64 = 500
 
-    spawn_domain::Domain = Domain((-5e-9,0.0), (-5e-9, 0.0), (-5e-9, 0.0))
+    spawn_domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
 
     for i in 1:number_atomes
         push!(positions, [
@@ -579,37 +633,43 @@ function main(remove_wall::Bool = true)
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
-    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, number_of_steps, dt, domain, g, remove_wall, new_domain)
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, remove_wall, new_domain, 
+                                            temperature_top, temperature_bottom, add_temperature_gradient)
 
 
     # Verification of the stability of the simulation
+    if check_stability
+        window_size = div(number_of_steps, 10)
+        stability_value = 6e-3
 
-    window_size = div(number_of_steps, 10)
-    stability_value = 6e-3
+        stability_values = []
+        times_stability = []
 
-    stability_values = []
-    times_stability = []
+        t_stable = 0
 
-    t_stable = 0
+        for t in window_size+1:100:number_of_steps        
+            push!(stability_values, energyStableValue(molecules, t, window_size))
+            push!(times_stability, t)
 
-    for t in window_size+1:100:number_of_steps        
-        push!(stability_values, energyStableValue(molecules, t, window_size))
-        push!(times_stability, t)
-
-        if stability_values[end] < stability_value && t_stable == 0
-            t_stable = t
+            if stability_values[end] < stability_value && t_stable == 0
+                t_stable = t
+            end
         end
-    end
 
-    p = Plots.plot(times_stability, stability_values, title="stability of the simulation", grid=false, legend=false, xlabel="time [s]", ylabel="energy stability value", ylims=:auto, xlims=:auto, xticks=:auto, yticks=range(minimum(stability_values), maximum(stability_values), length=5))
-    Plots.plot!(p, times_stability, [stability_value for _ in times_stability], color=:red, label="stability threshold")
-    display(p)
-    println("The simulation is stable at time: ", t_stable > 0 ? t_stable : "not stable during the simulation")
+        p = Plots.plot(times_stability, stability_values, title="stability of the simulation", grid=false, legend=false, xlabel="time [s]", ylabel="energy stability value", ylims=:auto, xlims=:auto, xticks=:auto, yticks=range(minimum(stability_values), maximum(stability_values), length=5))
+        Plots.plot!(p, times_stability, [stability_value for _ in times_stability], color=:red, label="stability threshold")
+        display(p)
+        println("The simulation is stable at time: ", t_stable > 0 ? t_stable : "not stable during the simulation")
+    end
 
     # With Plots
 
     if remove_wall
         plotEntropieRemoveWall(molecules, domain, new_domain, number_of_steps)
+    elseif add_temperature_gradient
+        plotEntropie(molecules, domain)
+        plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
     else
         plotEmec(molecules)
         plotQuantityOfMovement(molecules)
@@ -671,4 +731,4 @@ function main(remove_wall::Bool = true)
     end
 end
 
-main(false)
+main(false, false, true)
