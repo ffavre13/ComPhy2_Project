@@ -33,16 +33,46 @@ mutable struct Molecule
     velocities_history::Vector{Vector{Float64}}
 end
 
+"""
+    Domain
+
+Class for storing information about the simulation domain.
+
+### Fields
+- `lx::Tuple{Float64, Float64}`: The bounds of the domain in the x-direction [m].
+- `ly::Tuple{Float64, Float64}`: The bounds of the domain in the y-direction [m].
+- `lz::Tuple{Float64, Float64}`: The bounds of the domain in the z-direction [m].
+"""
 mutable struct Domain
     lx::Tuple{Float64, Float64}
     ly::Tuple{Float64, Float64}
     lz::Tuple{Float64, Float64}
 end
 
+"""
+    domainVolume(domain::Domain)
+
+Calculate the volume of the simulation domain.
+
+### Fields
+- `domain::Domain`: The simulation domain for which to calculate the volume.
+"""
 function domainVolume(domain::Domain)
     return abs(domain.lx[2] - domain.lx[1]) * abs(domain.ly[2] - domain.ly[1]) * abs(domain.lz[2] - domain.lz[1])
 end
 
+"""
+    checkDomain(molecule::Molecule, domain::Domain, temperature_top::Float64, temperature_bottom::Float64, add_temperature_gradient::Bool)
+
+Check if a molecule is within the bounds of the simulation domain and update its position and velocity if it collides with the walls.
+
+### Fields
+- `molecule::Molecule`: The molecule to check.
+- `domain::Domain`: The simulation domain to check against.
+- `temperature_top::Float64`: The temperature of the top wall (used if `add_temperature_gradient` is true) [K].
+- `temperature_bottom::Float64`: The temperature of the bottom wall (used if `add_temperature_gradient` is true) [K].
+- `add_temperature_gradient::Bool`: A boolean indicating whether to add a temperature gradient to the simulation. If true, the molecule's velocity will be updated based on the temperature of the wall it collides with.
+"""
 function checkDomain(molecule::Molecule,domain::Domain, temperature_top::Float64, temperature_bottom::Float64, add_temperature_gradient::Bool)
     domain_pos = [domain.lx, domain.ly, domain.lz]
 
