@@ -103,6 +103,19 @@ $
 \overrightarrow{r}(t + \Delta t) = \overrightarrow{r}(t) + \Delta t \cdot \overrightarrow{v} (t) 
 $
 
+## Exercice 3_3
+
+Implémenté dans la fonction `ComputeNextPosition(molecule, dt)`. On passe l'instance de la molécule et on modifie directement sa vitesse (avec la gravité) puis sa position.
+
+## Exercice 3_4
+
+On instancie un atome d'Hélium (m = 6.646e-27 kg, rayon = 1.1e-10 m) et on regarde sa trajectoire au cours du temps.
+
+- Position initiale : au centre du domaine [0, 0, 0], comme ça la molécule a de la place pour se déplacer.
+- Vitesse initiale : ~1400 m/s. C'est une vitesse réaliste pour ce gaz.
+- Pas de temps : dt = 1e-14 s. À l'échelle moléculaire les vitesses sont de l'ordre de 1000 m/s et le domaine fait quelques nm. Avec dt = 1e-14 s la molécule avance de v*dt ≈ 1.4e-11 m = 0.014 nm par pas, ce qui est petit devant la taille du domaine (~10 nm) et le rayon.
+- Temps final : 2e-11 s (soit 2000 pas).
+
 # Exercice 4
 
 ## Exercice 4_1
@@ -729,3 +742,69 @@ Car on chauffe uniquement le gaz en haut et en bas et pas a gauche, doite devant
 ## 13_5
 
 ![alt text](img/13_5.png)
+
+## 14_1
+
+![alt text](img/14_1.png)
+
+## 14_2
+
+r = distance entre 2 molécules
+σ = distance caractéristique de l'atome, la distance à laquelle le potentiel U(r) = 0
+
+- r << σ => U(r) > 0 => répulsion
+- r ≈ σ => U(r) = 0
+- r >> σ => U(r) < 0 => attraction
+
+## 14_4
+
+on doit diviser par 2 au lieu de 3 car on est en 2D et pas en 3D
+
+## 14_9
+
+Pour le Néon, $\epsilon / k_b = 4.91511044 \cdot 10^{-22} / 1.380649 \cdot 10^{-23} \approx 35.6$ K. C'est l'ordre de grandeur de l'énergie de liaison. Ducoup le comportement change beaucoup selon qu'on est au dessus ou en dessous de cette valeur.
+
+- T = 40 K (> 35.6 K) : les atomes ont assez d'énergie cinétique pour vaincre l'attraction de Lennard-Jones. Ils bougent librement, restent dispersés et occupent tout le domaine. On a un comportement de gaz (voir liquide).
+
+- T = 10 K (<< 35.6 K) : l'énergie cinétique est trop faible, c'est l'attraction du potentiel qui domine. Les atomes se regroupent et forment un ou plusieurs amas compacts et ordonnés (arrangement ~ hexagonal en 2D). Ils ne font plus que vibrer autour de leur position d'équilibre. On a un solide.
+
+La différence principale : à 40 K les particules sont éparpillées et mobiles, à 10 K elles sont agglomérées en une structure régulière et figée.
+
+## 14_10
+
+- Gaz : les particules sont très éloignées les unes des autres, elles n'ont pas de structure et se déplacent librement dans toutes les directions en remplissant tout le domaine. Les interactions sont quasi nulles la plupart du temps. C'est l'état le plus désordonné.
+
+- Liquide : les particules sont proches (elles se touchent) mais sans ordre à longue distance. Elles restent cohésives (densité à peu près constante) tout en pouvant glisser et se réarranger les unes par rapport aux autres. État intermédiaire.
+
+- Solide : les particules sont bloquées dans des positions fixes et forment une structure ordonnée et régulière (réseau ~ hexagonal en 2D). Elles ne font que vibrer autour de leur position d'équilibre, la mobilité est minimale. C'est l'état le plus ordonné.
+
+# Exercice 15
+
+## 15_1
+
+Implémenté dans la fonction `temperatureProfile(number_of_steps, t1, t2, n1, n2)` :
+- pendant les N1 premiers pas : T = T1 (constante)
+- ensuite décroissance linéaire de T1 vers T2 pendant N2 pas
+- puis T = T2 (constante) pour les pas restants
+
+## 15_3
+
+L'animation montre les 3 phases de température :
+
+- Phase 1 (T1 = 40 K constante) : les atomes sont agités et dispersés, ils remplissent le domaine. C'est un gaz.
+
+- Phase 2 (T descend de 40 K à 10 K) : en refroidissant, les atomes ralentissent et l'attraction de Lennard-Jones prend le dessus. Ils commencent à se regrouper en amas : c'est la condensation qui débute.
+
+- Phase 3 (T2 = 10 K constante) : les atomes sont figés dans une structure compacte et ordonnée, ils ne font plus que vibrer. La condensation solide est terminée.
+
+On passe donc progressivement d'un état gazeux désordonné à un état solide ordonné.
+
+## 15_4
+
+Pour chaque phase (gaz à T1, transition, solide à T2), on calcule la distribution de probabilité de présence spatiale des particules dans le domaine.
+
+- Phase gazeuse : la répartition est à peu près uniforme, les particules sont présentes un peu partout dans le domaine avec une probabilité homogène.
+
+- Phase solide : la répartition devient très localisée, la probabilité de présence se concentre sur quelques zones (les amas). On voit des pics là où le cristal s'est formé et des zones vides ailleurs.
+
+La répartition passe donc d'uniforme (gaz) à fortement concentrée (solide), ce qui traduit la diminution de l'entropie spatiale au cours de la condensation.

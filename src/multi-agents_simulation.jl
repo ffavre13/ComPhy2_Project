@@ -78,6 +78,10 @@ function checkDomain(molecule::Molecule,domain::Domain, temperature_top::Float64
 
     if add_temperature_gradient
         for dim in eachindex(molecule.position)
+            if domain_pos[dim][1] == domain_pos[dim][2]
+                continue
+            end
+
             if dim != 3
                 # left,right,front and back walls
                 # left wall
@@ -127,6 +131,9 @@ function checkDomain(molecule::Molecule,domain::Domain, temperature_top::Float64
         end
     else
         for dim in eachindex(molecule.position)
+            if domain_pos[dim][1] == domain_pos[dim][2]
+                continue
+            end
             # left wall
             if molecule.position[dim] - molecule.radius < domain_pos[dim][1]
                 dist = domain_pos[dim][1] - (molecule.position[dim] - molecule.radius)
@@ -156,7 +163,6 @@ Update the position of a molecule based on its current velocity and a time step.
 """
 function ComputeNextPosition(molecule::Molecule, dt::Float64)
     molecule.velocity = molecule.velocity + molecule.g .* dt
-
     molecule.position = molecule.position + dt .* molecule.velocity
 end
 
@@ -165,7 +171,7 @@ function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{F
     current_domain = domain
     
     for i in 1:length(position)
-        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], g, [zeros(Float64,3) for _ in 1:number_of_steps], [zeros(Float64,3) for _ in 1:number_of_steps]))
+        push!(molecules,Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], g, [zeros(Float64,length(position[i])) for _ in 1:number_of_steps], [zeros(Float64,length(position[i])) for _ in 1:number_of_steps]))
     end
 
     for m in molecules
@@ -206,6 +212,52 @@ function simulation(position::Vector{Vector{Float64}}, velocity::Vector{Vector{F
     return molecules
 end
 
+function computeNextPositionLennardJones(molecule::Molecule, force::Vector{Float64}, dt::Float64)
+    molecule.velocity = molecule.velocity + (force ./ molecule.mass) .* dt # F = m*a => a = F/m
+    molecule.position = molecule.position + molecule.velocity .* dt
+end
+
+function simulationLennardJones(position::Vector{Vector{Float64}}, velocity::Vector{Vector{Float64}}, mass::Vector{Float64}, radius::Vector{Float64}, chemical_formula::Vector{String}, number_of_steps::Int64, dt::Float64, domain::Domain, g::Vector{Float64}, temperatures_at_time::Vector{Float64}, sigma::Float64, epsilon::Float64)
+    molecules::Vector{Molecule} = Molecule[]
+
+    for i in 1:length(position)
+        push!(molecules, Molecule(position[i], velocity[i], mass[i], radius[i], chemical_formula[i], g, [zeros(Float64, length(position[i])) for _ in 1:number_of_steps], [zeros(Float64, length(position[i])) for _ in 1:number_of_steps]))
+    end
+
+    for m in molecules
+        m.positions_history[1] .= m.position
+        m.velocities_history[1] .= m.velocity
+    end
+
+    for t in 2:number_of_steps
+        if t % 1000 == 0
+            println("Step: ", t, "/", number_of_steps)
+        end
+
+        forces = [lennardJonesForce(molecules, i, sigma, epsilon) for i in eachindex(molecules)]
+
+        for i in eachindex(molecules)
+            computeNextPositionLennardJones(molecules[i], forces[i], dt)
+        end
+
+        for m in molecules
+            checkDomain(m, domain, 0.0, 0.0, false)
+        end
+
+        for m in molecules
+            m.positions_history[t] .= m.position
+            m.velocities_history[t] .= m.velocity
+        end
+
+        velocityRescaling(molecules, temperatures_at_time[t], t)
+
+        for m in molecules
+            m.velocities_history[t] .= m.velocity
+        end
+    end
+
+    return molecules
+end
 
 
 function detectCollision(molecule_a::Molecule, molecule_b::Molecule)
@@ -232,6 +284,33 @@ function checkCollision(molecules::Vector{Molecule})
     end
 end
 
+function lennardJonesForce(molecules::Vector{Molecule}, i::Int64, sigma::Float64, epsilon::Float64)
+    force = zeros(Float64, length(molecules[i].position))
+
+    for j in eachindex(molecules)
+        if i == j
+            continue
+        end
+
+        r_ij = molecules[i].position .- molecules[j].position
+        r = sqrt(sum(r_ij .^ 2))
+
+        if r < 3 * sigma
+            force .+= 24 * epsilon / r^2 * (2 * (sigma/r)^12 - (sigma/r)^6) .* r_ij
+        end
+    end
+
+    return force
+end
+
+function velocityRescaling(molecules::Vector{Molecule}, T_ref::Float64, t::Int64)
+    T_cal = calcTemperature(molecules, t, 2)
+    factor = sqrt(T_ref / T_cal)
+    for m in molecules
+        m.velocity .*= factor
+    end
+end
+
 function energyStableValue(molecules::Vector{Molecule}, t::Int64, window_size::Int64)
     if t <= window_size
         return false
@@ -253,6 +332,24 @@ function plotSystem(molecules::Vector{Molecule}, t::Int64, domain::Domain)
         y = [m.positions_history[t][2]]
         z = [m.positions_history[t][3]]
         Plots.scatter!(x,y,z,markersize=3)
+    end
+end
+
+function plotSystem2D(molecules::Vector{Molecule}, t::Int64, domain::Domain, number_of_steps::Int64, temperature::Float64)
+    Plots.plot(
+        legend=false,
+        xlims=(domain.lx[1],domain.lx[2]), 
+        ylims=(domain.ly[1],domain.ly[2]),
+        aspect_ratio=:equal,
+        size=(1000, 1000),
+        title = "Step $t / $number_of_steps | T = $(round(temperature, digits=2)) K",
+        background_color=:black,
+        foreground_color=:white)
+
+    for m in molecules
+        x = [m.positions_history[t][1]]
+        y = [m.positions_history[t][2]]
+        Plots.scatter!(x,y,markersize=12,color=:cyan)
     end
 end
 
@@ -327,13 +424,14 @@ function calcMeanVelocitySquare(molecules::Vector{Molecule}, t::Int64)
     return mean(velocities)
 end
 
-function calcTemperature(molecules::Vector{Molecule}, t::Int64)
+function calcTemperature(molecules::Vector{Molecule}, t::Int64, dims::Int64 = 3)
     kb = 1.380649e-23
+
     # mass = molecules[1].mass
     mean_velocity = calcMeanVelocitySquare(molecules, t)
 
-    # temperature = (mass * mean_velocity) /  (3*kb)
-    temperature = (mean_velocity) /  (3*kb)
+    # temperature = (mass * mean_velocity) /  (dims*kb)
+    temperature = (mean_velocity) /  (dims*kb)
 
     return temperature
 end
@@ -367,6 +465,23 @@ function plotPositionZDistribution(molecules::Vector{Molecule}, t::Int64)
     val = [m.positions_history[t][3] for m in molecules]
     p = Plots.histogram(val, bins = 20, title="final position z distribution", grid=false, legend=false, normalize=:probability, xlabel="position z [m]", ylabel="percentage", ylims=:auto, xlims=:auto)
     display(p)
+end
+
+function plotSpatialDistributionXY(molecules::Vector{Molecule}, t::Int64, domain::Domain, number_bins::Int64, phase_name::String)
+    x = [m.positions_history[t][1] for m in molecules]
+    y = [m.positions_history[t][2] for m in molecules]
+
+    bins_x = range(domain.lx[1], domain.lx[2], length = number_bins + 1)
+    bins_y = range(domain.ly[1], domain.ly[2], length = number_bins + 1)
+
+    px = Plots.histogram(x, bins = bins_x, normalize = :probability, title = "x distribution - $phase_name", grid = false, legend = false, xlabel = "position x [m]", ylabel = "probability")
+    display(px)
+
+    py = Plots.histogram(y, bins = bins_y, normalize = :probability, title = "y distribution - $phase_name", grid = false, legend = false, xlabel = "position y [m]", ylabel = "probability")
+    display(py)
+
+    ph = Plots.histogram2d(x, y, bins = (bins_x, bins_y), normalize = :probability, title = "spatial heatmap - $phase_name", xlabel = "position x [m]", ylabel = "position y [m]", aspect_ratio = :equal, color = :viridis, colorbar_title = "probability")
+    display(ph)
 end
 
 function calcPressureZDistribution(molecules::Vector{Molecule}, t::Int64, domain::Domain, number_bins::Int64)
@@ -616,13 +731,55 @@ function makieGetPositions(molecules, t)
     return [Point3f(m.positions_history[t][1],m.positions_history[t][2],m.positions_history[t][3]) for m in molecules]
 end
 
-function main(check_stability::Bool = true, remove_wall::Bool = true, add_temperature_gradient::Bool = true)
-    number_of_steps::Int64 = 10000
-    FPS = 240
+function newMoleculePosition(domain::Domain, existing_positions::Vector{Vector{Float64}}, sigma::Float64)::Vector{Float64}
+    min_dist = 0.9 * sigma
+
+    while true
+        pos = [
+            rand() * (domain.lx[2] - domain.lx[1]) + domain.lx[1],
+            rand() * (domain.ly[2] - domain.ly[1]) + domain.ly[1],
+            rand() * (domain.lz[2] - domain.lz[1]) + domain.lz[1]
+        ]
+
+        valid = true
+        for existing in existing_positions
+            if sqrt(sum((pos .- existing) .^ 2)) <= min_dist
+                valid = false
+                break
+            end
+        end
+
+        if valid
+            return pos
+        end
+    end
+end
+
+function temperatureProfile(number_of_steps::Int64, t1::Float64, t2::Float64, n1::Int64, n2::Int64)                                                                            
+    temperatures = zeros(Float64, number_of_steps)                                                                                                                             
+                                                                                                                                                                               
+    for t in 1:number_of_steps                                                                                                                                                 
+        if t <= n1                                                                                                                                                             
+            temperatures[t] = t1                                                                                                                                               
+        elseif t <= n1 + n2                                                                                                                                                    
+            temperatures[t] = t1 - (t1 - t2) * (t - n1) / n2                                                                                                                   
+        else                                                                                                                                                                   
+            temperatures[t] = t2                                                                                                                                               
+        end                                                                                                                                                                    
+    end                                                                                                                                                                        
+                                                                                                                                                                               
+    return temperatures
+end  
+
+function main(check_stability::Bool = true, remove_wall::Bool = true, add_temperature_gradient::Bool = true, lennardJones::Bool = false)
+    dt::Float64 = 1.0e-15
+    t_final::Float64 = 5.0e-11
+    number_of_steps::Int64 = div(t_final, dt) + 1
+
+    FPS = 30
 
     g = [0.0,0.0,0.0]
 
-    dt::Float64 = 1.0e-14
 
     positions::Vector{Vector{Float64}} = []
     velocities::Vector{Vector{Float64}} = []
@@ -630,43 +787,63 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     radius::Vector{Float64} = []
     chemical_formulas::Vector{String} = []
 
-    domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
-    new_domain::Domain = Domain((-5e-9, 15e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
-    temperature_top::Float64 = 700 # [K]
-    temperature_bottom::Float64 = 300 # [K]
+    domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
+    new_domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
+    
+    temperature_top::Float64 = 0 # [K]
+    temperature_bottom::Float64 = 0 # [K]
+
+    temperature_ref::Float64 = 40 # [K]
+    temperature_final::Float64 = 10 # [K]
+    N1_steps::Int64 = 15000
+    N2_steps::Int64 = 15000
+    temperatures_at_time::Vector{Float64} = temperatureProfile(number_of_steps, temperature_ref, temperature_final, N1_steps, N2_steps)
+    
+    sigma::Float64 = 2.74e-10 # [m]
+    epsilon::Float64 = 4.91511044e-22 # [J]
 
     # Random generation
 
     velocityValue::Float64 = 1400 # [m/s]
-    number_atomes::Int64 = 500
+    kb = 1.380649e-23
+    sigma_v = sqrt(kb * temperature_ref / 3.35105e-26)
+    number_atomes::Int64 = 100
 
-    spawn_domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-5e-9, 5e-9))
+    spawn_domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
 
     for i in 1:number_atomes
-        push!(positions, [
-                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
-                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
-                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
-            ])
+        # push!(positions, [
+        #         rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+        #         rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+        #         rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+        #     ])
 
-        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
-        velocity = velocity ./ sqrt(sum(velocity .^2))
-        velocity = velocity .* velocityValue
+        push!(positions, newMoleculePosition(spawn_domain, positions, sigma))
 
-        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+        # velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        # velocity = velocity ./ sqrt(sum(velocity .^2))
+        # velocity = velocity .* velocityValue
+
+        velocity::Vector{Float64} = [rand(Normal(0, sigma_v)), rand(Normal(0, sigma_v)), 0.0]
+
+        # @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
 
         push!(velocities, velocity)
-        push!(masses, 6.646e-27)
-        push!(radius, 1.1e-10)
-        push!(chemical_formulas, "He")
+        push!(masses, 3.35105e-26)
+        push!(radius, 1.37e-10)
+        push!(chemical_formulas, "Ne")
     end
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
-    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
-                                            number_of_steps, dt, domain, g, remove_wall, new_domain, 
-                                            temperature_top, temperature_bottom, add_temperature_gradient)
+    # Simulation 3D
+    # molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+    #                                         number_of_steps, dt, domain, g, remove_wall, new_domain, 
+    #                                         temperature_top, temperature_bottom, add_temperature_gradient)
 
+    # Simulation 2D - Lennard-Jones
+    molecules::Vector{Molecule} = simulationLennardJones(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, temperatures_at_time, sigma, epsilon)
 
     # Verification of the stability of the simulation
     if check_stability
@@ -694,8 +871,26 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     end
 
     # With Plots
+    if lennardJones
+        filename = "results/molecule_lennardJones_$temperature_ref - $temperature_final.mp4"
 
-    if remove_wall
+        step_anim = div(number_of_steps, 500)
+        frames = unique(vcat(collect(1:step_anim:number_of_steps), number_of_steps))
+        animation = @animate for t in frames
+            plotSystem2D(molecules, t, domain, number_of_steps, temperatures_at_time[t])
+        end
+
+        mp4(animation, filename, fps = FPS)
+
+        phase_gas_t = N1_steps
+        phase_transition_t = div(number_of_steps - N1_steps - N2_steps, 2) + N1_steps
+        phase_solid_t = number_of_steps
+
+        plotSpatialDistributionXY(molecules, phase_gas_t, domain, 10, "phase gaz")
+        plotSpatialDistributionXY(molecules, phase_transition_t, domain, 10, "phase transition")
+        plotSpatialDistributionXY(molecules, phase_solid_t, domain, 10, "phase solide")
+
+    elseif remove_wall
         plotEntropieRemoveWall(molecules, domain, new_domain, number_of_steps)
     elseif add_temperature_gradient
         plotEntropie(molecules, domain)
@@ -761,4 +956,4 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     end
 end
 
-main(false, false, true)
+main(false, false, false, true)
