@@ -410,7 +410,7 @@ function plotVelocityDistributionFinal(molecules::Vector{Molecule})
     t_final = length(molecules[1].velocities_history)
 
     val = [sqrt(sum(m.velocities_history[t_final] .^ 2)) for m in molecules]
-    p = Plots.histogram(val, bins = 70, title="final velocity magnitude distribution", grid=false, legend=false, xlabel="velocity value [m/s]", ylabel="number of molecules", ylims=:auto, xlims=:auto)
+    p = Plots.histogram(val, bins = 30, title="final velocity magnitude distribution", grid=false, legend=false, xlabel="velocity value [m/s]", ylabel="number of molecules", ylims=:auto, xlims=:auto)
     display(p)
 end
 
@@ -464,6 +464,20 @@ end
 function plotPositionZDistribution(molecules::Vector{Molecule}, t::Int64)
     val = [m.positions_history[t][3] for m in molecules]
     p = Plots.histogram(val, bins = 20, title="final position z distribution", grid=false, legend=false, normalize=:probability, xlabel="position z [m]", ylabel="percentage", ylims=:auto, xlims=:auto)
+    display(p)
+end
+
+function plotPositionZDistributionMultiSpecies(molecules::Vector{Molecule}, t::Int64)
+    species = unique([m.chemical_formula for m in molecules])
+    colors = [:red, :blue, :green, :orange, :purple, :cyan, :magenta]
+
+    p = Plots.plot(title="final position z distribution by species", grid=false, legend=:topright, normalize=:probability, xlabel="position z [m]", ylabel="percentage", ylims=:auto, xlims=:auto)
+
+    for (i, s) in enumerate(species)
+        val = [m.positions_history[t][3] for m in molecules if m.chemical_formula == s]
+        Plots.histogram!(p, val, bins=30, label=s, color=colors[i], alpha=0.5)
+    end
+
     display(p)
 end
 
@@ -783,9 +797,9 @@ function temperatureProfile(number_of_steps::Int64, t1::Float64, t2::Float64, n1
     return temperatures
 end  
 
-function main(check_stability::Bool = true, remove_wall::Bool = true, add_temperature_gradient::Bool = true, lennardJones::Bool = false)
+function main_lennardJones()
     dt::Float64 = 1.0e-15
-    t_final::Float64 = 35.0e-11
+    t_final::Float64 = 5.0e-11
     number_of_steps::Int64 = div(t_final, dt) + 1
 
     FPS = 30
@@ -800,15 +814,11 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     chemical_formulas::Vector{String} = []
 
     domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
-    new_domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
-    
-    temperature_top::Float64 = 0 # [K]
-    temperature_bottom::Float64 = 0 # [K]
 
     temperature_ref::Float64 = 40 # [K]
     temperature_final::Float64 = 10 # [K]
-    N1_steps::Int64 = 30000
-    N2_steps::Int64 = 45000
+    N1_steps::Int64 = 15000
+    N2_steps::Int64 = 15000
     temperatures_at_time::Vector{Float64} = temperatureProfile(number_of_steps, temperature_ref, temperature_final, N1_steps, N2_steps)
     
     sigma::Float64 = 2.74e-10 # [m]
@@ -816,7 +826,6 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
 
     # Random generation
 
-    velocityValue::Float64 = 1400 # [m/s]
     kb = 1.380649e-23
     sigma_v = sqrt(kb * temperature_ref / 3.35105e-26)
     number_atomes::Int64 = 100
@@ -824,21 +833,9 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     spawn_domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
 
     for i in 1:number_atomes
-        # push!(positions, [
-        #         rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
-        #         rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
-        #         rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
-        #     ])
-
         push!(positions, newMoleculePosition(spawn_domain, positions, sigma))
 
-        # velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
-        # velocity = velocity ./ sqrt(sum(velocity .^2))
-        # velocity = velocity .* velocityValue
-
         velocity::Vector{Float64} = [rand(Normal(0, sigma_v)), rand(Normal(0, sigma_v)), 0.0]
-
-        # @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
 
         push!(velocities, velocity)
         push!(masses, 3.35105e-26)
@@ -848,14 +845,234 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
 
     @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
 
-    # Simulation 3D
-    # molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
-    #                                         number_of_steps, dt, domain, g, remove_wall, new_domain, 
-    #                                         temperature_top, temperature_bottom, add_temperature_gradient)
-
     # Simulation 2D - Lennard-Jones
     molecules::Vector{Molecule} = simulationLennardJones(positions,velocities,masses,radius,chemical_formulas, 
                                             number_of_steps, dt, domain, g, temperatures_at_time, sigma, epsilon)
+
+    filename = "results/molecule_lennardJones_$temperature_ref - $temperature_final.mp4"
+
+    step_anim = FPS * 10
+    frames = unique(vcat(collect(1:step_anim:number_of_steps), number_of_steps))
+    animation = @animate for t in frames
+        plotSystem2D(molecules, t, domain, number_of_steps, temperatures_at_time[t])
+    end
+
+    mp4(animation, filename, fps = FPS)
+
+    phase_gas_range = 1:N1_steps
+    phase_transition_range = (N1_steps + 1):(N1_steps + N2_steps)
+    phase_solid_range = (N1_steps + N2_steps + 1):number_of_steps
+
+    plotSpatialDistributionXY(molecules, phase_gas_range, domain, "phase gaz")
+    plotSpatialDistributionXY(molecules, phase_transition_range, domain, "phase transition")
+    plotSpatialDistributionXY(molecules, phase_solid_range, domain, "phase solide")
+end
+
+function main_entropy(remove_wall::Bool = true)
+    dt::Float64 = 1.0e-14
+    t_final::Float64 = 10.0e-11
+    number_of_steps::Int64 = div(t_final, dt)
+
+    FPS = 30
+
+    g = [0.0,0.0,0.0]
+
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
+    new_domain::Domain = Domain((-5e-9, 15e-9), (-5e-9, 5e-9), (-5e-9, 5e-9))
+
+
+    # Random generation
+
+    velocityValue::Float64 = 1400 # [m/s]
+    number_atomes::Int64 = 400
+
+    spawn_domain::Domain = Domain((-5e-9, 0), (-5e-9, 0), (-5e-9, 0))
+
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
+
+    # Simulation 3D
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, remove_wall, new_domain, 
+                                            0.0, 0.0, false)
+
+    if remove_wall
+        plotEntropieRemoveWall(molecules, domain, new_domain, number_of_steps)
+    else
+        plotEntropie(molecules, domain)
+    end
+
+    # Save the video
+    fig, pos  = makieSystem(molecules, new_domain, number_of_steps)
+
+    record(fig, "results/molecule.mp4", 1:number_of_steps) do t
+        pos[] = makieGetPositions(molecules, t)
+    end
+end
+
+function main_temp_gradient()
+    dt::Float64 = 1.0e-14
+    t_final::Float64 = 1.0e-10
+    number_of_steps::Int64 = div(t_final, dt)
+
+    FPS = 30
+
+    g = [0.0,0.0,0.0]
+
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-2e-9, 2e-9))
+    new_domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-2e-9, 2e-9))
+    
+    temperature_top::Float64 = 700 # [K]
+    temperature_bottom::Float64 = 300 # [K]
+
+    # Random generation
+    velocityValue::Float64 = 1400 # [m/s]
+    number_atomes::Int64 = 500
+
+    spawn_domain::Domain = Domain((-2e-9, 2e-9), (-2e-9, 2e-9), (-2e-9, 2e-9))
+
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
+
+    # Simulation 3D
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, false, new_domain, 
+                                            temperature_top, temperature_bottom, true)
+
+    plotEntropie(molecules, domain)
+    plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
+    
+    # Save the video
+    fig, pos  = makieSystem(molecules, domain, number_of_steps)
+
+    record(fig, "results/molecule.mp4", 1:number_of_steps) do t
+        pos[] = makieGetPositions(molecules, t)
+    end
+end
+
+function main_multi_species(check_stability::Bool = true)
+    dt::Float64 = 1.0e-14
+    t_final::Float64 = 10.0e-11
+    number_of_steps::Int64 = div(t_final, dt)
+
+    FPS = 30
+
+    g = [0.0,0.0,-9.81e13]
+
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+    new_domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+    
+    # Random generation
+
+    velocityValue::Float64 = 789.45 # [m/s]
+    number_atomes::Int64 = 400
+    spawn_domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
+    velocityValue = 249.88 # [m/s]
+    number_atomes = 200
+    spawn_domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.634e-26)
+        push!(radius, 1.88e-10)
+        push!(chemical_formulas, "Ar")
+    end
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
+
+    # Simulation 3D
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, false, new_domain, 
+                                            0.0, 0.0, false)
 
     # Verification of the stability of the simulation
     if check_stability
@@ -882,90 +1099,212 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
         println("The simulation is stable at time: ", t_stable > 0 ? t_stable : "not stable during the simulation")
     end
 
-    # With Plots
-    if lennardJones
-        filename = "results/molecule_lennardJones_$temperature_ref - $temperature_final.mp4"
 
-        step_anim = FPS * 10
-        frames = unique(vcat(collect(1:step_anim:number_of_steps), number_of_steps))
-        animation = @animate for t in frames
-            plotSystem2D(molecules, t, domain, number_of_steps, temperatures_at_time[t])
-        end
+    plotEmec(molecules)
+    plotQuantityOfMovement(molecules)
+    plotMeanVelocity(molecules)
+    plotVelocityDistributionFinal(molecules)
+    plotTemperature(molecules)
+    plotPressure(molecules, domain)
+    plotPositionZDistribution(molecules, length(molecules[1].positions_history))
+    plotPositionZDistributionMultiSpecies(molecules, length(molecules[1].positions_history))
+    plotPressureZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotMeanVelocityZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotEntropie(molecules, domain)
 
-        mp4(animation, filename, fps = FPS)
+    # filename = "results/molecule.mp4"
 
-        phase_gas_range = 1:N1_steps
-        phase_transition_range = (N1_steps + 1):(N1_steps + N2_steps)
-        phase_solid_range = (N1_steps + N2_steps + 1):number_of_steps
+    # animation = @animate for t in 1:number_of_steps
+    #     plotSystem(molecules, t, domain)
+    # end
 
-        plotSpatialDistributionXY(molecules, phase_gas_range, domain, "phase gaz")
-        plotSpatialDistributionXY(molecules, phase_transition_range, domain, "phase transition")
-        plotSpatialDistributionXY(molecules, phase_solid_range, domain, "phase solide")
-
-    elseif remove_wall
-        plotEntropieRemoveWall(molecules, domain, new_domain, number_of_steps)
-    elseif add_temperature_gradient
-        plotEntropie(molecules, domain)
-        plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
-    else
-        plotEmec(molecules)
-        plotQuantityOfMovement(molecules)
-        plotMeanVelocity(molecules)
-        plotVelocityDistributionFinal(molecules)
-        plotTemperature(molecules)
-        plotPressure(molecules, domain)
-        plotPositionZDistribution(molecules, length(molecules[1].positions_history))
-        plotPressureZDistribution(molecules, domain, length(molecules[1].positions_history))
-        plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
-        plotMeanVelocityZDistribution(molecules, domain, length(molecules[1].positions_history))
-        plotEntropie(molecules, domain)
-
-        # filename = "results/molecule.mp4"
-
-        # animation = @animate for t in 1:number_of_steps
-        #     plotSystem(molecules, t, domain)
-        # end
-
-        # mp4(animation, filename, fps = FPS)
+    # mp4(animation, filename, fps = FPS)
 
 
-        # With makie
+    # With makie
 
-        # # Save the video
-        # fig, pos  = makieSystem(molecules, domain, number_of_steps)
-
-        # record(fig, "results/molecule.mp4", 1:number_of_steps) do t
-        #     pos[] = makieGetPositions(molecules, t)
-        # end
-
-        fig, pos, slider, button, z_distribution, z_values, z_pressure_values, chemical_formulas_distribution = makieSystemInteractive(molecules, domain, number_of_steps)
-
-        playing = Observable(false)
-        stop_animation = true
-
-        on(slider.value) do t
-            pos[] = makieGetPositions(molecules, Int(t))
-            z_distribution[1][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[1]]
-            z_distribution[2][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[2]]
-            z_values[], z_pressure_values[] = calcPressureZDistribution(molecules, Int(t), domain, 20)
-        end
-
-        on(button.clicks) do _
-            playing[] = !playing[]
-        end
-
-        @async while stop_animation
-            if playing[]
-                slider.value[] = mod(slider.value[] , number_of_steps) + 1
-            end
-            sleep(1/FPS)
-        end
-        
-
-        wait(display(fig))
-
-        stop_animation = false
+    # Save the video
+    fig, pos  = makieSystem(molecules, domain, number_of_steps)
+    
+    record(fig, "results/molecule.mp4", 1:300:number_of_steps) do t
+        pos[] = makieGetPositions(molecules, t)
     end
+
+
+    # Interactive animation with Makie
+
+    # fig, pos, slider, button, z_distribution, z_values, z_pressure_values, chemical_formulas_distribution = makieSystemInteractive(molecules, domain, number_of_steps)
+
+    # playing = Observable(false)
+    # stop_animation = true
+
+    # on(slider.value) do t
+    #     pos[] = makieGetPositions(molecules, Int(t))
+    #     z_distribution[1][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[1]]
+    #     z_distribution[2][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[2]]
+    #     z_values[], z_pressure_values[] = calcPressureZDistribution(molecules, Int(t), domain, 20)
+    # end
+
+    # on(button.clicks) do _
+    #     playing[] = !playing[]
+    # end
+
+    # @async while stop_animation
+    #     if playing[]
+    #         slider.value[] = mod(slider.value[] , number_of_steps) + 1
+    #     end
+    #     sleep(1/FPS)
+    # end
+    
+
+    # wait(display(fig))
+
+    # stop_animation = false
 end
 
-main(false, false, false, true)
+function main_standard(check_stability::Bool = true)
+    dt::Float64 = 1.0e-14
+    t_final::Float64 = 10.0e-11
+    number_of_steps::Int64 = div(t_final, dt)
+
+    FPS = 30
+
+    g = [0.0,0.0,-9.81e13]
+
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+    new_domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+    
+    # Random generation
+
+    velocityValue::Float64 = 1367 # [m/s]
+    number_atomes::Int64 = 500
+
+    spawn_domain::Domain = Domain((-1e-8, 1e-8), (-1e-8, 1e-8), (-1e-8, 1e-8))
+
+    for i in 1:number_atomes
+        push!(positions, [
+                rand() * (spawn_domain.lx[2] - spawn_domain.lx[1]) + spawn_domain.lx[1],
+                rand() * (spawn_domain.ly[2] - spawn_domain.ly[1]) + spawn_domain.ly[1],
+                rand() * (spawn_domain.lz[2] - spawn_domain.lz[1]) + spawn_domain.lz[1]
+            ])
+
+        velocity::Vector{Float64} = [rand()*10-5,rand()*10-5,rand()*10-5]
+        velocity = velocity ./ sqrt(sum(velocity .^2))
+        velocity = velocity .* velocityValue
+
+        @assert isapprox(sqrt(sum(velocity .^ 2)), velocityValue; atol=1e-6)
+
+        push!(velocities, velocity)
+        push!(masses, 6.646e-27)
+        push!(radius, 1.1e-10)
+        push!(chemical_formulas, "He")
+    end
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
+
+    # Simulation 3D
+    molecules::Vector{Molecule} = simulation(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, false, new_domain, 
+                                            0.0, 0.0, false)
+
+    # Verification of the stability of the simulation
+    if check_stability
+        window_size = div(number_of_steps, 10)
+        stability_value = 6e-3
+
+        stability_values = []
+        times_stability = []
+
+        t_stable = 0
+
+        for t in window_size+1:100:number_of_steps        
+            push!(stability_values, energyStableValue(molecules, t, window_size))
+            push!(times_stability, t)
+
+            if stability_values[end] < stability_value && t_stable == 0
+                t_stable = t
+            end
+        end
+
+        p = Plots.plot(times_stability, stability_values, title="stability of the simulation", grid=false, legend=false, xlabel="time [s]", ylabel="energy stability value", ylims=:auto, xlims=:auto, xticks=:auto, yticks=range(minimum(stability_values), maximum(stability_values), length=5))
+        Plots.plot!(p, times_stability, [stability_value for _ in times_stability], color=:red, label="stability threshold")
+        display(p)
+        println("The simulation is stable at time: ", t_stable > 0 ? t_stable : "not stable during the simulation")
+    end
+
+
+    plotEmec(molecules)
+    plotQuantityOfMovement(molecules)
+    plotMeanVelocity(molecules)
+    plotVelocityDistributionFinal(molecules)
+    plotTemperature(molecules)
+    plotPressure(molecules, domain)
+    plotPositionZDistribution(molecules, length(molecules[1].positions_history))
+    plotPressureZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotTemperatureZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotMeanVelocityZDistribution(molecules, domain, length(molecules[1].positions_history))
+    plotEntropie(molecules, domain)
+
+    # filename = "results/molecule.mp4"
+
+    # animation = @animate for t in 1:number_of_steps
+    #     plotSystem(molecules, t, domain)
+    # end
+
+    # mp4(animation, filename, fps = FPS)
+
+
+    # With makie
+
+    # Save the video
+    fig, pos  = makieSystem(molecules, domain, number_of_steps)
+    
+    record(fig, "results/molecule.mp4", 1:300:number_of_steps) do t
+        pos[] = makieGetPositions(molecules, t)
+    end
+
+
+    # Interactive animation with Makie
+
+    # fig, pos, slider, button, z_distribution, z_values, z_pressure_values, chemical_formulas_distribution = makieSystemInteractive(molecules, domain, number_of_steps)
+
+    # playing = Observable(false)
+    # stop_animation = true
+
+    # on(slider.value) do t
+    #     pos[] = makieGetPositions(molecules, Int(t))
+    #     z_distribution[1][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[1]]
+    #     z_distribution[2][] = [m.positions_history[Int(t)][3] for m in molecules if m.chemical_formula == chemical_formulas_distribution[2]]
+    #     z_values[], z_pressure_values[] = calcPressureZDistribution(molecules, Int(t), domain, 20)
+    # end
+
+    # on(button.clicks) do _
+    #     playing[] = !playing[]
+    # end
+
+    # @async while stop_animation
+    #     if playing[]
+    #         slider.value[] = mod(slider.value[] , number_of_steps) + 1
+    #     end
+    #     sleep(1/FPS)
+    # end
+    
+
+    # wait(display(fig))
+
+    # stop_animation = false
+end
+
+# main_lennardJones()
+# main_entropy(true)
+# main_temp_gradient()
+main_multi_species(false)
+# main_standard(false)
