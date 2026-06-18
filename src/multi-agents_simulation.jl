@@ -349,7 +349,7 @@ function plotSystem2D(molecules::Vector{Molecule}, t::Int64, domain::Domain, num
     for m in molecules
         x = [m.positions_history[t][1]]
         y = [m.positions_history[t][2]]
-        Plots.scatter!(x,y,markersize=12,color=:cyan)
+        Plots.scatter!(x,y,markersize=13,color=:cyan)
     end
 end
 
@@ -467,20 +467,32 @@ function plotPositionZDistribution(molecules::Vector{Molecule}, t::Int64)
     display(p)
 end
 
-function plotSpatialDistributionXY(molecules::Vector{Molecule}, t::Int64, domain::Domain, number_bins::Int64, phase_name::String)
-    x = [m.positions_history[t][1] for m in molecules]
-    y = [m.positions_history[t][2] for m in molecules]
+function plotSpatialDistributionXY(molecules::Vector{Molecule}, t_range::AbstractRange, domain::Domain, phase_name::String)
+    number_bins = 25
 
-    bins_x = range(domain.lx[1], domain.lx[2], length = number_bins + 1)
-    bins_y = range(domain.ly[1], domain.ly[2], length = number_bins + 1)
+    dx = (domain.lx[2] - domain.lx[1]) / number_bins
+    dy = (domain.ly[2] - domain.ly[1]) / number_bins
 
-    px = Plots.histogram(x, bins = bins_x, normalize = :probability, title = "x distribution - $phase_name", grid = false, legend = false, xlabel = "position x [m]", ylabel = "probability")
-    display(px)
+    counts = zeros(Float64, number_bins, number_bins)
+    for t in t_range
+        for m in molecules
+            x = m.positions_history[t][1]
+            y = m.positions_history[t][2]
+            i = clamp(Int(floor((x - domain.lx[1]) / dx)) + 1, 1, number_bins)
+            j = clamp(Int(floor((y - domain.ly[1]) / dy)) + 1, 1, number_bins)
+            counts[j, i] += 1
+        end
+    end
+    counts ./= sum(counts)
 
-    py = Plots.histogram(y, bins = bins_y, normalize = :probability, title = "y distribution - $phase_name", grid = false, legend = false, xlabel = "position y [m]", ylabel = "probability")
-    display(py)
+    x_centers = [domain.lx[1] + (i - 0.5) * dx for i in 1:number_bins]
+    y_centers = [domain.ly[1] + (j - 0.5) * dy for j in 1:number_bins]
 
-    ph = Plots.histogram2d(x, y, bins = (bins_x, bins_y), normalize = :probability, title = "spatial heatmap - $phase_name", xlabel = "position x [m]", ylabel = "position y [m]", aspect_ratio = :equal, color = :viridis, colorbar_title = "probability")
+    ph = Plots.heatmap(x_centers, y_centers, counts,
+        color = :inferno, background_color_inside = :black,
+        title = "spatial distribution in xy plane - $phase_name",
+        grid = false, xlabel = "position x [m]", ylabel = "position y [m]",
+        xlims = (domain.lx[1], domain.lx[2]), ylims = (domain.ly[1], domain.ly[2]))
     display(ph)
 end
 
@@ -773,7 +785,7 @@ end
 
 function main(check_stability::Bool = true, remove_wall::Bool = true, add_temperature_gradient::Bool = true, lennardJones::Bool = false)
     dt::Float64 = 1.0e-15
-    t_final::Float64 = 5.0e-11
+    t_final::Float64 = 35.0e-11
     number_of_steps::Int64 = div(t_final, dt) + 1
 
     FPS = 30
@@ -795,8 +807,8 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
 
     temperature_ref::Float64 = 40 # [K]
     temperature_final::Float64 = 10 # [K]
-    N1_steps::Int64 = 15000
-    N2_steps::Int64 = 15000
+    N1_steps::Int64 = 30000
+    N2_steps::Int64 = 45000
     temperatures_at_time::Vector{Float64} = temperatureProfile(number_of_steps, temperature_ref, temperature_final, N1_steps, N2_steps)
     
     sigma::Float64 = 2.74e-10 # [m]
@@ -874,7 +886,7 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
     if lennardJones
         filename = "results/molecule_lennardJones_$temperature_ref - $temperature_final.mp4"
 
-        step_anim = div(number_of_steps, 500)
+        step_anim = FPS * 10
         frames = unique(vcat(collect(1:step_anim:number_of_steps), number_of_steps))
         animation = @animate for t in frames
             plotSystem2D(molecules, t, domain, number_of_steps, temperatures_at_time[t])
@@ -882,13 +894,13 @@ function main(check_stability::Bool = true, remove_wall::Bool = true, add_temper
 
         mp4(animation, filename, fps = FPS)
 
-        phase_gas_t = N1_steps
-        phase_transition_t = div(number_of_steps - N1_steps - N2_steps, 2) + N1_steps
-        phase_solid_t = number_of_steps
+        phase_gas_range = 1:N1_steps
+        phase_transition_range = (N1_steps + 1):(N1_steps + N2_steps)
+        phase_solid_range = (N1_steps + N2_steps + 1):number_of_steps
 
-        plotSpatialDistributionXY(molecules, phase_gas_t, domain, 10, "phase gaz")
-        plotSpatialDistributionXY(molecules, phase_transition_t, domain, 10, "phase transition")
-        plotSpatialDistributionXY(molecules, phase_solid_t, domain, 10, "phase solide")
+        plotSpatialDistributionXY(molecules, phase_gas_range, domain, "phase gaz")
+        plotSpatialDistributionXY(molecules, phase_transition_range, domain, "phase transition")
+        plotSpatialDistributionXY(molecules, phase_solid_range, domain, "phase solide")
 
     elseif remove_wall
         plotEntropieRemoveWall(molecules, domain, new_domain, number_of_steps)
