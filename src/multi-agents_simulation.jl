@@ -795,7 +795,78 @@ function temperatureProfile(number_of_steps::Int64, t1::Float64, t2::Float64, n1
     end                                                                                                                                                                        
                                                                                                                                                                                
     return temperatures
-end  
+end
+
+function main_lennardJones_condensation()
+    dt::Float64 = 1.0e-15
+    t_final::Float64 = 5.0e-11
+    number_of_steps::Int64 = div(t_final, dt) + 1
+
+    FPS = 30
+
+    g = [0.0,0.0,0.0]
+
+
+    positions::Vector{Vector{Float64}} = []
+    velocities::Vector{Vector{Float64}} = []
+    masses::Vector{Float64} = []
+    radius::Vector{Float64} = []
+    chemical_formulas::Vector{String} = []
+
+    domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
+
+    temperature_ref::Float64 = 40 # [K]
+    temperature_final::Float64 = 10 # [K]
+    N1_steps::Int64 = 15000
+    N2_steps::Int64 = 15000
+    temperatures_at_time::Vector{Float64} = temperatureProfile(number_of_steps, temperature_ref, temperature_final, N1_steps, N2_steps)
+    
+    sigma::Float64 = 2.74e-10 # [m]
+    epsilon::Float64 = 4.91511044e-22 # [J]
+
+    # Random generation
+
+    kb = 1.380649e-23
+    sigma_v = sqrt(kb * temperature_ref / 3.35105e-26)
+    number_atomes::Int64 = 100
+
+    spawn_domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
+
+    for i in 1:number_atomes
+        push!(positions, newMoleculePosition(spawn_domain, positions, sigma))
+
+        velocity::Vector{Float64} = [rand(Normal(0, sigma_v)), rand(Normal(0, sigma_v)), 0.0]
+
+        push!(velocities, velocity)
+        push!(masses, 3.35105e-26)
+        push!(radius, 1.37e-10)
+        push!(chemical_formulas, "Ne")
+    end
+
+    @assert length(positions) == length(velocities) == length(masses) == length(radius) == length(chemical_formulas)
+
+    # Simulation 2D - Lennard-Jones
+    molecules::Vector{Molecule} = simulationLennardJones(positions,velocities,masses,radius,chemical_formulas, 
+                                            number_of_steps, dt, domain, g, temperatures_at_time, sigma, epsilon)
+
+    filename = "results/molecule_lennardJones_$temperature_ref - $temperature_final.mp4"
+
+    step_anim = FPS * 10
+    frames = unique(vcat(collect(1:step_anim:number_of_steps), number_of_steps))
+    animation = @animate for t in frames
+        plotSystem2D(molecules, t, domain, number_of_steps, temperatures_at_time[t])
+    end
+
+    mp4(animation, filename, fps = FPS)
+
+    phase_gas_range = 1:N1_steps
+    phase_transition_range = (N1_steps + 1):(N1_steps + N2_steps)
+    phase_solid_range = (N1_steps + N2_steps + 1):number_of_steps
+
+    plotSpatialDistributionXY(molecules, phase_gas_range, domain, "phase gaz")
+    plotSpatialDistributionXY(molecules, phase_transition_range, domain, "phase transition")
+    plotSpatialDistributionXY(molecules, phase_solid_range, domain, "phase solide")
+end
 
 function main_lennardJones()
     dt::Float64 = 1.0e-15
@@ -816,7 +887,7 @@ function main_lennardJones()
     domain::Domain = Domain((-5e-9, 5e-9), (-5e-9, 5e-9), (0, 0))
 
     temperature_ref::Float64 = 40 # [K]
-    temperature_final::Float64 = 10 # [K]
+    temperature_final::Float64 = 40 # [K]
     N1_steps::Int64 = 15000
     N2_steps::Int64 = 15000
     temperatures_at_time::Vector{Float64} = temperatureProfile(number_of_steps, temperature_ref, temperature_final, N1_steps, N2_steps)
@@ -1303,8 +1374,9 @@ function main_standard(check_stability::Bool = true)
     # stop_animation = false
 end
 
-# main_lennardJones()
+main_lennardJones()
+# main_lennardJones_condensation()
 # main_entropy(true)
 # main_temp_gradient()
-main_multi_species(false)
+# main_multi_species(false)
 # main_standard(false)
